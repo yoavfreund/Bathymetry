@@ -1,0 +1,254 @@
+-- Create 1 billion row table with contents of all CM files.
+-- Uses 2008 "CM File" attribute names.
+
+CREATE TABLE cmTable (
+time			int4,
+longitude		float8,
+latitude		float8,
+depth			float8,
+sigma_h			float8,
+sigma_d			float8,
+source_id		int4,
+predicted_depth	float8,
+file_name		char(256)
+) ;
+
+-- DROP TABLE SourceId cmTable ;
+-- COPY cmTable FROM '/private/tmp/huge.csv' (DELIMITER ',') ;
+
+
+
+-- create relationship between SourceId and FileName, tables for each
+--
+-- Every cruise should have a unique "sid"
+-- 	but a cruise might be so big it is in multiple files.
+-- 	Conversely, a single file should only have a single cruise in it.
+
+-- DROP TABLE SourceId_FileName ;
+-- SELECT DISTINCT source_id, file_name INTO SourceId_FileName FROM cmTable ;
+--
+-- cmTable uses old names for attributes, and those got copied into SourceId_FileName
+-- ALTER TABLE sourceid_filename RENAME COLUMN source_id TO SourceId ;
+-- ALTER TABLE sourceid_filename RENAME COLUMN file_name TO FileName ;
+--
+DROP TABLE SourceId CASCADE ;
+CREATE TABLE SourceId(
+ SourceId		numeric NOT NULL PRIMARY KEY  -- implicit primary key constraint
+) ;
+
+DROP TABLE FileName CASCADE ;
+CREATE TABLE FileName(
+ FileName		text NOT NULL PRIMARY KEY
+) ;
+
+INSERT INTO SourceId (SourceId) SELECT DISTINCT SourceId FROM sourceid_filename ;
+INSERT INTO FileName (FileName) SELECT DISTINCT FileName FROM sourceid_filename ;
+
+
+-- find files with multiple SourceId, this is always a bug
+SELECT FileName
+FROM sourceid_filename
+GROUP BY FileName
+HAVING ( COUNT(FileName) > 1 ) ;
+
+-- multiple files with same SourceId is legal, but most likely duplicate files
+-- list all the files with a duplicate SourceId
+SELECT SourceId
+FROM sourceid_filename
+GROUP BY SourceId
+HAVING ( COUNT(SourceId) > 1 ) ;
+
+WITH duplicate_sourceid AS (
+		SELECT SourceId
+		FROM sourceid_filename
+		GROUP BY SourceId
+		HAVING ( COUNT(SourceId) > 1 )
+	)
+SELECT *
+FROM sourceid_filename
+WHERE SourceId IN (SELECT SourceId FROM duplicate_sourceid) ;
+
+
+
+-- Create 1 billion row table with all pings that will be used for numerical
+-- processing. It lacks filenames, which are in SourceId_FileName, has sequential primary
+-- key and uses logical attribute names.
+--
+-- This table needs to be fast look up using location, or depth, or both
+
+CREATE TABLE Ping (
+Ping_id			SERIAL PRIMARY KEY,
+Time 			int4,
+Location 		GEOGRAPHY(POINT,4326),
+Depth 			float8,
+SigmaHorizontal float8,
+SigmaDepth 		float8,
+SourceId 		int4,
+PredictedDepth	float8
+) ;
+
+-- DROP TABLE Ping CASCADE ;
+-- INSERT INTO Ping (SourceId, Time, Location, Depth, PredictedDepth, SigmaHorizontal, SigmaDepth)
+--  SELECT source_id, time, ST_SetSRID(ST_MakePoint(longitude, latitude),4326), depth, predicted_depth, sigma_h, sigma_d
+--  FROM cmTable ;
+--
+DROP INDEX Ping_Location_GIST ;
+CREATE INDEX Ping_Location_GIST
+ ON Ping
+ USING GIST (Location) ;
+VACUUM ANALYZE Ping ;
+
+DROP INDEX Ping_Depth_BTREE ;
+CREATE INDEX Ping_Depth_BTREE
+ ON Ping
+ USING BTREE (Depth) ;
+VACUUM ANALYZE Ping ;
+
+DROP INDEX Ping_SigmaDepth_BTREE ;
+CREATE INDEX Ping_SigmaDepth_BTREE
+ ON Ping
+ USING BTREE (SigmaDepth) ;
+VACUUM ANALYZE Ping ;
+
+DROP INDEX Ping_sourceId_BTREE ;
+CREATE INDEX Ping_sourceId_BTREE
+ ON Ping
+ USING BTREE (SourceId) ;
+VACUUM ANALYZE Ping ;
+
+DROP INDEX Ping_PredictedDepth_BTREE ;
+CREATE INDEX Ping_PredictedDepth_BTREE
+ ON Ping
+ USING BTREE (PredictedDepth) ;
+VACUUM ANALYZE Ping ;
+
+
+-- How big is data base?
+
+SELECT pg_size_pretty(pg_total_relation_size('cmTable')) ;
+SELECT pg_size_pretty(pg_total_relation_size('Ping')) ;
+SELECT pg_size_pretty(pg_total_relation_size('SourceId_FileName')) ;
+
+SELECT
+    table_name,
+    pg_size_pretty(table_size) AS table_size,
+    pg_size_pretty(indexes_size) AS indexes_size,
+    pg_size_pretty(total_size) AS total_size
+FROM (
+    SELECT
+        table_name,
+        pg_table_size(table_name) AS table_size,
+        pg_indexes_size(table_name) AS indexes_size,
+        pg_total_relation_size(table_name) AS total_size
+    FROM (
+        SELECT ('"' || table_schema || '"."' || table_name || '"') AS table_name
+        FROM information_schema.tables
+    ) AS all_tables
+    ORDER BY total_size DESC
+) AS pretty_sizes ;
+
+
+-- Some example queries
+
+SELECT ST_AsText(Location) FROM Ping LIMIT 10 ;
+
+SELECT ST_AsText(Location) FROM Ping WHERE Depth NOT BETWEEN -1130 AND -1120 ;
+
+SELECT * from Ping where ST_DWithin(Location,'POINT(127.538 28.574)',5000) ;
+SELECT * from Ping where ST_DWithin(Location,'POINT(-71.07997705575207 31.64653157113466)',5000) ;
+
+select * from sourceid_filename where filename like '%KN161L07%' ;
+
+
+WITH duplicate_sourceid AS (
+ SELECT SourceId
+  FROM sourceid_filename
+  GROUP BY SourceId
+  HAVING ( COUNT(SourceId) > 1 )
+ )
+ SELECT *
+  FROM sourceid_filename
+  WHERE SourceId IN (
+   SELECT SourceId FROM duplicate_sourceid
+  ) ;
+
+
+WITH interesting_sourceid AS (
+ SELECT DISTINCT sourceid FROM Ping
+ WHERE ST_DWithin(Location,'POINT(-71.07997705575207 31.64653157113466)',200000)
+  AND verticalsigma=9999
+ )
+ SELECT *
+  FROM sourceid_filename
+  WHERE SourceId IN (
+   SELECT SourceId FROM interesting_sourceid
+  ) ;
+
+WITH interesting_sourceid AS (
+ SELECT DISTINCT sourceid FROM Ping
+ WHERE depth > 0
+ )
+ SELECT *
+  FROM sourceid_filename
+  WHERE SourceId IN (
+   SELECT SourceId FROM interesting_sourceid
+  ) ;
+
+-- Some useful references
+
+http://postgis.refractions.net/documentation/manual-1.3SVN/ch04.html#id2728048
+http://www.postgresql.org/docs/6.5/static/datatype.htm
+http://www.thegeekstuff.com/2009/05/15-advanced-postgresql-commands-with-examples/
+http://www.thegeekstuff.com/2009/01/how-to-backup-and-restore-postgres-database-using-pg_dump-and-psql/
+
+http://postgis.refractions.net/documentation/manual-1.4/ST_Contains.html
+
+CREATE TABLE polygons (name varchar, geo geography);
+INSERT INTO polygons VALUES (
+ 'polygonAroundBadPing',
+ ST_GeomFromText( 'POLYGON((
+  -71.2229447634429 31.56520200367765,
+  -71.09054372113864 31.51971916445343,
+  -70.93282895722388 31.57660856612804,
+  -70.92230937787896 31.70083683083929,
+  -71.26105111955876 31.75930818879246,
+  -71.2229447634429 31.56520200367765
+ ))',4326)
+) ;
+
+INSERT INTO polygons VALUES (
+ 'badPingLocation',
+ ST_GeomFromText( 'POINT(
+  -71.07997705575207 31.64653157113466
+ )',4326)
+) ;
+
+SELECT name, ST_AsText(geo) FROM polygons;
+
+SELECT * from Ping where ST_Within(location::geometry,  ST_GeomFromText( 'POLYGON((
+  -71.2229447634429 31.56520200367765,
+  -71.09054372113864 31.51971916445343,
+  -70.93282895722388 31.57660856612804,
+  -70.92230937787896 31.70083683083929,
+  -71.26105111955876 31.75930818879246,
+  -71.2229447634429 31.56520200367765
+ ))',4326) ;
+
+-- ALTER TABLE sourceIdFileName RENAME TO SourceId_FileName ;
+-- ALTER TABLE Ping RENAME TO Ping ;
+-- ALTER TABLE Ping RENAME COLUMN location TO Location ;
+-- ALTER TABLE Ping RENAME COLUMN id TO Ping_id ;
+-- ALTER TABLE Ping RENAME COLUMN depth TO Depth ;
+-- ALTER TABLE Ping RENAME COLUMN SigmaHorizontal TO HorizontalSigma ;
+-- ALTER TABLE Ping RENAME COLUMN SigmaDepth TO VerticalSigma ;
+-- ALTER TABLE Ping RENAME COLUMN source_id TO SourceId ;
+-- ALTER TABLE Ping RENAME COLUMN predicted_depth TO PredictedDepth ;
+
+-- could not connect to server: No such file or directory
+-- Is the server running locally and accepting
+-- connections on Unix domain socket "/var/pgsql_socket/.s.PGSQL.5432"?
+--
+-- mkdir /var/pgsql_socket/
+--
+-- ln -s /private/tmp/.s.PGSQL.5432 /var/pgsql_socket/
+

@@ -1,0 +1,26 @@
+1/18/03  - D. Sandwell
+
+The programs and scripts in this directory provide a way to extract
+data from the global topography and gravity grids.  There are two
+ways the data can be extracted.
+
+img2xyz -     Extract data in rectangular area with an output format
+              ASCII lon, lat, topo.
+
+interp_ship - Extract data at lon, lat points provided by the user.
+              A bilinear interpolation is used and a new column is 
+              added to the user's file.
+
+update_grid - This script used GMP commands along with the above
+              programs img2xyz and interp_ship to merge new topography
+              measurements with the global topogrid.  The new topography
+              is provided as an ASCII xyz file.  The output file is a GMT 
+              grid at of the area and spacing requested by the user.
+
+Note if you do not have GMT running on your computer you can install it
+free but it is a lot of work.  The programs img2xyz and interp_ship
+are self-contained Fortran and C. If you are on an Intel computer you will
+need to swap the bytes of the global topography grid.   Do a man on dd.
+Here is an example.
+
+dd if=global_file.img of=global_file_intel.img bs=21600 conv=swab

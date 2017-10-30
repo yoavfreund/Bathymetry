@@ -1,0 +1,9 @@
+*s60 land/ice/grounding
+
+e120n75 ASTER (?) stripes missing
+e150n75 ''
+e165n75
+
+FIXED?
+
+w090n90 missing ASTER tiles 80N81W to 79N80W (N79W081.hgt)

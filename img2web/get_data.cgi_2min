@@ -1,0 +1,53 @@
+#!/opt/bin/perl -w
+
+use strict;
+use CGI qw(param);
+
+my $south;
+my $north;
+my $east;
+my $west;
+my $mag;
+my $infile;
+
+if(param()){
+	$south=param("south");
+	$north=param("north");
+	$east=param("east");
+	$west=param("west");
+	$mag=param("mag");
+	if($mag==1){
+		$infile="/topex/ftp/pub/global_topo_2min/topo_6.2.img";
+	}elsif($mag==0.1){
+		$infile="/topex/ftp/pub/global_grav_2min/grav.img.9.2";
+	}elsif($mag==0.01){
+		$infile="/topex/ftp/pub/global_geoid_2min/geoid.img.9.2";
+	}
+	print "Content-type: text/plain\n\n";
+	if(($east<0)&&($west>0)){
+		system "img2web $infile $south $north $east 0 $mag";
+		system "img2web $infile $south $north 0 $west $mag";
+	}else{
+		system "img2web $infile $south $north $east $west $mag";
+	}
+}else{
+print <<ENDHTML;
+Content-type: text/html
+
+<html><head><title>interactive SAR data</title></head>
+<body bgcolor=ffeeee text=000000 alink=ff0000
+<form action="get_data.cgi" method="post">
+<table>
+<tr><td>South boundary <input type=text name="south" size=4></td>
+<td>North boundary <input type=text name="north" size=4></td></tr>
+<tr><td>East boundary <input type=text name="east" size=4></td>
+<td>West boundary <input type=text name="west" size=4></td></tr>
+<tr><td width=100><input type="radio" name="mag" value=1> Topography</td>
+<td width=100><input type="radio" name="mag" value=0.1> Gravity</td>
+<td width=100><input type="radio" name="mag" value=0.01> Geoid</td></tr>
+</table>
+<input type=submit value="Get data">
+</form>
+</body></html>
+ENDHTML
+}

@@ -1,0 +1,83 @@
+#!/bin/csh
+
+# need lots of sig figs to keep surface from moaning
+
+gmtset D_FORMAT = %.16lg
+gmtset VERBOSE = TRUE
+
+if ($#argv != 3) then
+    echo "usage: $0 MOA_public MOA_private oDir"
+    echo "  example: $0 /geosat4/data/public /geosat4/data/private /geosat2/srtm15_data/huge"
+    exit
+endif
+
+set MOA_public  = $1;   shift
+set MOA_private = $1;   shift
+set oDir        = $1;   shift
+
+set cmDir =   $oDir/cmFiles
+rm $cmDir/*.cmxyzi
+/bin/mkdir -p $oDir $cmDir
+
+# make it all from scratch, or at least from cm files...
+# use unique extension cmxyzi to ease debug and partial runs
+#
+# use all processors. In this case, several jobs are very quick,
+# just launch all 12 and let them thrash just a little bit...
+#FIXME: MAYBE these can not be run in parallel; this makes this one step slow.
+#FIXME: group these by eye to be jobs of roughly same size (i.e. fast and slow)
+#
+#FIXME: it would be more efficient to remove shoal pings in makeAgencyCm.csh
+#FIXME: but do that as a separate step to make bad pings easier to find; maybe...
+#
+echo "-CREATE- .cmxyzi files from cm data"
+csh makeAgencyCm.csh $MOA_public/AGSO       $cmDir/AGSO.cmxyzi      &
+csh makeAgencyCm.csh $MOA_public/CCOM       $cmDir/CCOM.cmxyzi      &
+csh makeAgencyCm.csh $MOA_public/GEOMAR     $cmDir/GEOMAR.cmxyzi    &
+csh makeAgencyCm.csh $MOA_public/IBCAO      $cmDir/IBCAO.cmxyzi     &
+csh makeAgencyCm.csh $MOA_public/JAMSTEC    $cmDir/JAMSTEC.cmxyzi   &
+#csh makeAgencyCm.csh $MOA_public/NAVO       $cmDir/NAVO.cmxyzi      &
+wait;
+#csh makeAgencyCm.csh $MOA_public/NGA        $cmDir/NGA.cmxyzi       &
+csh makeAgencyCm.csh $MOA_public/NGDC       $cmDir/NGDC.cmxyzi      &
+csh makeAgencyCm.csh $MOA_public/NOAA       $cmDir/NOAA.cmxyzi      &
+#csh makeAgencyCm.csh $MOA_public/NOAA_geodas  $cmDir/NOAA_geodas.cmxyzi &
+csh makeAgencyCm.csh $MOA_public/SIO        $cmDir/SIO.cmxyzi       &
+csh makeAgencyCm.csh $MOA_public/US_multi   $cmDir/US_multi.cmxyzi  &
+wait;
+csh makeAgencyCm.csh $MOA_public/lakes      $cmDir/lakes.cmxyzi     &
+csh makeAgencyCm.csh $MOA_private/3DGBR     $cmDir/3DGBR.cmxyzi     &
+#csh makeAgencyCm.csh $MOA_private/GEBCO     $cmDir/GEBCO.cmxyzi     &
+#csh makeAgencyCm.csh $MOA_private/IFREMER $cmDir/IFREMER.cmxyzi   &
+# wait
+
+# FIRST Special Case
+#
+# Do want DNC data or not?
+#FIXME: need some smart way to select DNC or not...
+if (6 == 9) then
+
+    set dnc = $cmDir/DNC_prop
+    csh makeAgencyCm.csh $MOA_private/NGA $dnc.tmp
+
+    # use data from DNC, but set the sid = 0?
+    if (6 == 9) then
+        echo "Using DNC data, but zeroing DNC sid..."
+        cat $dnc.tmp | awk '{ print $1, $2, $3, 00000 }' >! $dnc.cmxyzi
+        /bin/rm -rf $dnc.tmp
+    else
+        echo "Using DNC data and keeping DNC sid..."
+        mv $dnc.tmp $dnc.cmxyzi
+    endif
+
+else
+    echo "-NOT- using DNC data"
+endif
+
+#FIXME: it would be more efficient to remove shoal pings in makeAgencyCm.csh
+#FIXME: but do that as a separate step to make bad pings easier to find; maybe...
+removeShoalPings.sh -1 $cmDir $oDir/huge.xyzi $oDir/huge.shoal.xyzi
+
+# all done, double check the results
+
+minmax $oDir/huge.xyzi $oDir/huge.shoal.xyzi

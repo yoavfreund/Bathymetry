@@ -1,0 +1,57 @@
+#!/bin/bash
+set -u
+echo "`date`: starting bathymetry/$0 $@ "
+purge
+source ../../demPaths.sh
+
+if [ "$#" != "1" ] ; then
+	echo "usage: `basename $0` resolution"
+	echo "  example: `basename $0` 15c "
+	exit
+fi
+
+resolution=$1;	shift
+
+# surfaceOpts set in ../../demPaths.sh
+
+# The easy way to convert from polar stereographic to geographic coords is to use the
+# EPSG data. The format that is being used is EPSG 3996.
+#
+# The hard way: It's not obvious what geographic coords IBCAO grid is on. Turns out center
+# lat lon is 70N 0E. Using mapproject we can convert x,y to lat lon...
+#
+# 	mapproject -R-180/180/0/90 -Js0/90/70/1:1 -C -F -I
+#
+# Step by step: just do this and see if you get a sensible answer...
+#
+# 	e.g.
+#	1) grdinfo IBCAO_V3_500m_RR.grd
+# 	2) echo -2904000 -2904000 0 | invproj +init=epsg:3996 -f "%.9f"
+#		-90.000000000	53.341686066 0
+#
+# So the southern limit of that grid is 53.341686066 N and the
+#	other limits are +/-180 and 90 N...
+#
+# However we normally just assume a lower limit well above 53N, typically 70N
+
+mapRegion="-R-180/180/$minArctic/90"
+
+# land mask for IBCAO grid
+(grdlandmask -Df+ -N1/NaN -I$resolution $mapRegion -G$ibcaoStem.wet.grd > /dev/null 2>&1) &
+
+# NOTE: the first grd2xyz must ---NOT--- have a -fg,
+#	just -f because its not geographic,
+# 		its polar stereo azimuth,
+#			after the invproject it is geographic
+grd2xyz	$ibcaoGrd						 -f  -V		|
+	invproj +init=epsg:3996				 -f "%.9f"	|
+	blockmedian $mapRegion -I$resolution -fg -V	-bo |
+	surface -bi $mapRegion -I$resolution -fg -V $surfaceOpts -G$ibcaoStem.surface.grd
+
+wait;wait;wait;
+grdmath $ibcaoStem.surface.grd $ibcaoStem.wet.grd MUL = $arcticGrd
+
+# NOTE: we --DO-- want -fg here
+grd2xyz	$arcticGrd	$mapRegion -fg -S -V	> $arcticXyz
+
+exit

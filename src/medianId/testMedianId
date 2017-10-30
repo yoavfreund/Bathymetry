@@ -1,0 +1,9 @@
+#!/bin/csh
+##
+# need lots of sig figs to keep surface from moaning
+
+gmtset D_FORMAT = %.16lg
+
+blockmedian -Q ./test.xyzi -I30c -Rg-170/-160/60/65 -F -V -fg
+./medianId  -Q ./test.xyzi -I30c -Rg-170/-160/60/65 -F -V -fg
+

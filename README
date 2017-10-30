@@ -1,0 +1,183 @@
+SRTM15 Quick Start
+
+0. Bottom line, two scripts will run for about 36 hours total, and you're done.
+
+1. Expand SRTM15.zip and decide where you want to place it. I use (note double srtm15)
+
+	/Volumes/srtm15/SRTM15
+	
+---> PLEASE use copy/paste/find/replace the string "/Volumes/srtm15" to adapt these directions to your paths <---
+	
+2. Edit the include file that has all the DEM, arctic, and other paths
+
+	/Volumes/srtm15/SRTM15/demPath.sh
+
+3. Decide where you want to place SRTM15, and SRTM15+. (I use scratch dir "doNotBackup" 
+as it's easy to keep TimeMachine from backing that dir up and wasting a lot of space)
+
+	mkdir -p /Volumes/srtm15/doNotBackup/srtm15
+	mkdir -p /Volumes/srtm15/doNotBackup/srtm15_plus/srtm/grd
+
+4. Create land at 15c in 15x15 tiles, (it first downsamples land to 6c), save it for future use,
+and then blockmedian all the land together. Takes about 12 hours on a MacBookPro with 16GB
+and a SSD. One script will do all this for you!
+
+The three directories with names like "doNotBackup/asterDownsampledTo6c" can be any place 
+you like, but they need a total of 275 GB of free space...
+
+	cd /Volumes/srtm15/SRTM15/com/land
+	
+	worldMakeAllTiles.sh \
+		15c 15 15 \
+		/Volumes/srtm15/doNotBackup/doNotBackup/asterDownsampledTo6c \
+		/Volumes/srtm15/doNotBackup/doNotBackup/cgiarDownsampledTo6c \
+		/Volumes/srtm15/doNotBackup/doNotBackup/glasDownsampledTo6c  \
+		/Volumes/srtm15/doNotBackup/doNotBackup/srtm15
+		
+This will create a 15c land, (with a few masking issues).
+
+			/Volumes/srtm15/doNotBackup/srtm15
+		 
+4. In srtm_plus directory place a link in it to srtm land. You could create 
+land directly in this dir, but it only takes one incorrect "rm", and you'll waste a day
+rebuilding all the land...
+	
+	mkdir -p /Volumes/srtm15/doNotBackup/srtm15_plus/srtm/grd
+	
+	ln -s \
+		/Volumes/srtm15/doNotBackup/srtm15 \
+		/Volumes/srtm15/doNotBackup/srtm15_plus/srtm/grd
+
+	
+5. Make the bathymetry and merge it with SRTM land, takes about 12 hours, and is done by
+a single script.
+
+---> You'll (probably) have to edit 30 lines to correct my paths for CM dirs listed in 
+makeAllCmTiles.csh as described below.
+
+	cd /Volumes/srtm15/SRTM15/com/bathymetry
+	
+	// check and edit paths in makeAllCmTiles.csh
+	
+	worldMakeAllTiles.sh 15 15 15 /Volumes/srtm15/doNotBackup/srtm15_plus
+	
+The output will be /Volumes/srtm15/doNotBackup/srtm15_plus/grd
+
+	e.g. for w150n30 the grids of srtm+, bathy only, sid, and KML are
+
+	/Volumes/srtm15/doNotBackup/srtm15_plus/grd/w150n30.Bathymetry.srtm.grd
+	/Volumes/srtm15/doNotBackup/srtm15_plus/grd/w150n30.Bathymetry.grd
+	/Volumes/srtm15/doNotBackup/srtm15_plus/grd/w150n30.sid.grd
+	/Volumes/srtm15/doNotBackup/srtm15_plus/plots/w150n30.Bathymetry.srtm.kml
+	
+	
+All done.
+
+=============
+
+
+Steps to create SRTM15_PLUS
+
+"land/worldMakeAllTiles.sh"
+
+Approx runtime: 24 hrs on a MacBook Pro with SSD and 16GB of RAM.
+
+Location: /Volumes/srtm15/SRTM15/com/land/
+
+Bash script creates a SRTM30 like data set of land grids, but at 15c in 15x15 degree
+tiles. The input parameters include the destination of downsampled ASTER, CGIAR and GLAS
+tiles, but the location of the corresponding DEM these are created from are hard coded in 
+
+	/Volumes/srtm15/SRTM15/demPath.sh
+	
+This keeps the number of input parameters reasonable.
+
+The DEM are first down sampled to 6c, which is the NRL standard resolution, and then the
+down sampled DEM are median filtered at the desired resolution; typically 15c. The 6c
+files are about 46 GB for ASTER above 60N, 148 GB for CGIAR between 60N and 60S, and 67 GB
+of GLAS/IceSat data south of 60S and also Greenland. The median filtered union of all 3 
+datasets is 47GB at 15c.
+
+Because the DEM do contain bathymetry, and because the GMT surface utility can extrapolate
+wildly, the land tiles need to be masked to contain only subarial (land) data. This is a
+work in progress. For the time being elevations less than 3m are assumed to be bathymetry.
+In addition, the GMT utility grdsample is used to mask grd location more than 50km from a
+DEM location to further elimate artifacts from surface. This step is slow and done 
+approximately because the DEM data is first median filtered to 120c resolution. The output 
+is reasonably good, but it is a work in progress...
+
+Currently I know (think) land masks in 3 of the n45 tiles around the Black Sea are bad,
+E15N45, E30N45, E45N45, but...
+
+For the moment only integer math is allowed, but the resolution is arbitrary, if only
+sensible at or above 6c.
+
+---
+
+"bathymetry/worldMakeAllTiles.sh"
+
+Approx runtime: 24 hrs on a MacBook Pro with SSD and 16GB of RAM.
+
+Location: /Volumes/srtm15/SRTM15/com/bathymetry/
+
+Bash script creates a SRTM30_PLUS like data set, but at 15c in 15x15 degree tiles.
+
+Assumes that land has been made at 15c in 15x15 tiles and that is either linked to or
+located at
+
+		/Volumes/srtm15/doNotBackup/srtm15_plus/srtm/grd
+
+There are three steps: gather the edited pings, create tiles of predicted, combine land,
+predicted, and bathymetry. The first two steps can be commented out to make things run
+quickly; for example new editing pings but no new predicted. 
+
+A typical call would be
+
+	 worldMakeAllTiles.sh 15 15 15 /Volumes/srtm15/doNotBackup/srtm15_plus/ /Volumes/srtm15/doNotBackup/srtm15"
+
+but for the moment, the linking land step is commented out to avoid disasters. I create
+links by hand before making the bathy...
+
+	ln -s "srtm15 land" /Volumes/srtm15/doNotBackup/srtm15_plus/srtm/grd
+
+---
+
+"makeAllCmTiles.csh"
+
+Approx runtime: 3 hrs on a MacBook Pro with SSD and 16GB of RAM.
+
+Location: com/bathymetry/
+
+This is run as part of the step to make all the bathymetry, but can be run separately to
+streamline the process by commenting out calls to make predicted tiles and/or edited data.
+
+"makeAllCmTiles" gathers all the edited CM files, and create a standardized set of 
+bathymetry tiles. The code is essentially where the various directories containing CM 
+files are organized into the desired tile size. 
+
+You'll have to edit lines 40-60 that point to the various directories for the various 
+agencies. Again you need to edit CM file path the arctic grid path hard coded in 
+
+	/Volumes/srtm15/SRTM15/demPath.sh
+
+This job obviously needs to be rerun when ever there is new or newly edited data available
+
+The tiles along the international date line might be broken. They are supposed to have a 
+1 degree pad around them, but this is tricky at the 180 rollover...
+
+---
+
+"makeSrtmPlusTilesInRegion.csh"
+
+Approx runtime: Global set needs about 18 hrs on a MacBook Pro with SSD and 16GB of RAM.
+
+Location: com/bathymetry/
+
+---> The SRTM subarial data is assumed to be a GRD file in a particular location. I copy it
+from the actual land data, but a link can be used
+
+	ln -s "srtm15" /Volumes/srtm15/doNotBackup/srtm15_plus/srtm/grd
+
+	
+---> Land data is used as a mask to make the predicted and bathymetry tiles, and must be
+present!
