@@ -45,6 +45,8 @@ The data density filtered over 10 and 30km half wavelengths.
 
 The vertical gravity gradient based on satellite altimetry. Show small scale structures on the seafloor.
 
+![map of gravity](static/images/gravity.png?raw=true "Map of gravity")
+
 ## age
 
 This is the age of the seafloor.
