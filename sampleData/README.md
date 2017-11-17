@@ -39,6 +39,8 @@ This is the predicted depth using an algorithm. The seafloor depth based on a co
 
 The data density filtered over 10 and 30km half wavelengths.
 
+![map of dens20](static/images/dens20.png?raw=true "Map of dens20")
+
 ## gravity
 
 The vertical gravity gradient based on satellite altimetry. Show small scale structures on the seafloor.
@@ -47,13 +49,19 @@ The vertical gravity gradient based on satellite altimetry. Show small scale str
 
 This is the age of the seafloor.
 
+![map of age](static/images/agev2.png?raw=true "Map of seafloor age (roygbiv scale inverted")
+
 ## rate
 
 Spreading rate based on the age grid above.
 
+![map of rate](static/images/rate.png?raw=true "Map of rate")
+
 ## sed thickness
 
 This is the floor's sediment thickness. Areas of thick sediment have a flat seafloor.
+
+![map of sed thickness](static/images/sed.png?raw=true "Map of sediment thickness")
 
 ## roughness
 
