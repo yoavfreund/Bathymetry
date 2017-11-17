@@ -67,3 +67,5 @@ This is the floor's sediment thickness. Areas of thick sediment have a flat seaf
 
 This is a measure of how rough the seafloor is. High pass filtered topography at 80km half wavelength squared and low pass filtered at 80km square rooted.
 
+![map of roughness](static/images/topo.png?raw=true "Map of roughness")
+
