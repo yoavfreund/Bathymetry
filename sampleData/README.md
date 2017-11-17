@@ -4,7 +4,7 @@
 This is the feature names array in the python script that I'm running.
 
 ---
-## This section describes the columns in sample.cm in the respective order the columns are list in `sample.cm`.
+## This section describes the columns in sample.cm in the respective order the columns are listed in `sample.cm`.
 ## long
 
 Pretty much as the name suggests, it is the longitude of the data collected.
