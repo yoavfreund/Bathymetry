@@ -38,8 +38,7 @@ Software that takes the polygons and marks (9999) those locations in the measure
 
 ## databse
 organization
-| col      |        type   |       |
-|----------|:-------------:|------:|
+| col      |        type   |   XX    |
 | organization_id | int | PRIMARY KEY |
 | name | varchar(255) |    |
 | access_method | varchar(255) |    |
