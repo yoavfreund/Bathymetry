@@ -51,7 +51,7 @@ Software that takes the polygons and marks (9999) those locations in the measure
 | file_path  | varchar|
 
 ### pings
-| organization  | PRIMARY KEY(organization_id) |
+| organization  | PRIMARY KEY(ping_id) |
 | ------------- | ------------- |
 | ping_id  | int  |
 | time  | int4  |
