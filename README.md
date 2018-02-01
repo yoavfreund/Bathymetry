@@ -35,3 +35,12 @@ Software that takes the polygons and marks (9999) those locations in the measure
 ### Machine Learning Software.
 
 ## Organization of the repository.
+
+## databse
+| organization                     |
+|----------|:-------------:|------:|
+| organization_id | int | PRIMARY KEY |
+| name | varchar(255) |    |
+| access_method | varchar(255) |    |
+    
+
