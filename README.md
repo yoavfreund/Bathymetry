@@ -47,6 +47,24 @@ Software that takes the polygons and marks (9999) those locations in the measure
 ### file_paths
 | file_paths  | |
 | ------------- | ------------- |
-| source_id  | float  |
-| file_path  | varchar(255)  |
+| source_id  | float8  |
+| file_path  | varchar|
+
+### pings
+| organization  | PRIMARY KEY(organization_id) |
+| ------------- | ------------- |
+| ping_id  | int  |
+| time  | int4  |
+| longitude  | float8 |
+| latitude  | float8 |
+| depth  | float8 |
+| sigma_h  | float8 |
+| sigma_d  | float8 |
+| source_id  | int4 |
+| predicted_depth  | float8 |
+| predicted_bad  | float8 |
+| organization_id  | int |
+
+
+
 
