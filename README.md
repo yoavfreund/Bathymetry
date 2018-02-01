@@ -43,7 +43,8 @@ organization
 | name | varchar(255) |    |
 | access_method | varchar(255) |    |
     
-| First Header  | Second Header |
+| organization  | PRIMARY KEY(organization_id) |
 | ------------- | ------------- |
-| Content Cell  | Content Cell  |
-| Content Cell  | Content Cell  |
+| organization_id  | int  |
+| name  | varchar(255)  |
+| access_method  | varchar(255)  |
