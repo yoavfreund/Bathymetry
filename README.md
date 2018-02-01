@@ -37,14 +37,16 @@ Software that takes the polygons and marks (9999) those locations in the measure
 ## Organization of the repository.
 
 ## databse
-organization
-| col      |        type   |   XX    |
-| organization_id | int | PRIMARY KEY |
-| name | varchar(255) |    |
-| access_method | varchar(255) |    |
-    
+### organization    
 | organization  | PRIMARY KEY(organization_id) |
 | ------------- | ------------- |
 | organization_id  | int  |
 | name  | varchar(255)  |
 | access_method  | varchar(255)  |
+
+### file_paths
+| file_paths  | |
+| ------------- | ------------- |
+| source_id  | float  |
+| file_path  | varchar(255)  |
+
