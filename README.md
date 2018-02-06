@@ -65,11 +65,11 @@ Software that takes the polygons and marks (9999) those locations in the measure
 | predicted_bad  | float8 |
 | organization_id  | int |
 
-Indexes:
-    "pings_pkey" PRIMARY KEY, btree (ping_id)
-    "pings__depth_btree_index" btree (depth)
-    "pings__source_id_btree_index" btree (source_id)
-    "pings_organization_id_btree_index" btree (organization_id)
-    "pings_predicted_bad_btree_index" btree (predicted_bad)
+Indexes:<br>
+-    "pings_pkey" PRIMARY KEY, btree (ping_id) 
+-    "pings__depth_btree_index" btree (depth) 
+-    "pings__source_id_btree_index" btree (source_id)
+-    "pings_organization_id_btree_index" btree (organization_id)
+-    "pings_predicted_bad_btree_index" btree (predicted_bad)
 
 
