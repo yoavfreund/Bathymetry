@@ -71,5 +71,6 @@ Indexes:<br>
 -    "pings__source_id_btree_index" btree (source_id)
 -    "pings_organization_id_btree_index" btree (organization_id)
 -    "pings_predicted_bad_btree_index" btree (predicted_bad)
-
+-    "pings_latitude_btree_index" btree (latitude)
+-    "pings_longitude_btree_index" btree (longitude)
 
