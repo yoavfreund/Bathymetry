@@ -47,7 +47,7 @@ Software that takes the polygons and marks (9999) those locations in the measure
 ### file_paths
 | file_paths  | |
 | ------------- | ------------- |
-| source_id  | float8  |
+| source_id  | int4  |
 | file_path  | varchar|
 
 ### pings
