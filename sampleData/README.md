@@ -34,6 +34,9 @@ This is the assigned id for the ship's cruise, this will probably make a good ke
 This is the predicted depth using an algorithm. The seafloor depth based on a combination of depth predictions from gravity and the measured depth from a previous iteration from the model.
 
 ---
+**Yoav:** I think it would make sense to have features that characterize the known depth in a region around the current point. Similarly it would be good to have features that characterize measurements before/after the current measurement point.
+
+---
 ## Everything below is added by data extracted from various grd files.
 ## dens20/dens60
 
