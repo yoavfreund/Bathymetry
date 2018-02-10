@@ -35,3 +35,42 @@ Software that takes the polygons and marks (9999) those locations in the measure
 ### Machine Learning Software.
 
 ## Organization of the repository.
+
+## databse
+### organization    
+| organization  | PRIMARY KEY(organization_id) |
+| ------------- | ------------- |
+| organization_id  | int  |
+| name  | varchar(255)  |
+| access_method  | varchar(255)  |
+
+### file_paths
+| file_paths  | |
+| ------------- | ------------- |
+| source_id  | int4  |
+| file_path  | varchar|
+
+### pings
+| pings  | PRIMARY KEY(ping_id) |
+| ------------- | ------------- |
+| ping_id  | int  |
+| time  | int4  |
+| longitude  | float8 |
+| latitude  | float8 |
+| depth  | float8 |
+| sigma_h  | float8 |
+| sigma_d  | float8 |
+| source_id  | int4 |
+| predicted_depth  | float8 |
+| predicted_bad  | float8 |
+| organization_id  | int |
+
+Indexes:<br>
+-    "pings_pkey" PRIMARY KEY, btree (ping_id) 
+-    "pings__depth_btree_index" btree (depth) 
+-    "pings__source_id_btree_index" btree (source_id)
+-    "pings_organization_id_btree_index" btree (organization_id)
+-    "pings_predicted_bad_btree_index" btree (predicted_bad)
+-    "pings_latitude_btree_index" btree (latitude)
+-    "pings_longitude_btree_index" btree (longitude)
+
