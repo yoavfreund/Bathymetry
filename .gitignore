@@ -1,0 +1,6 @@
+xgboost/*.cache*
+xgboost/*.pkl
+xgboost/.ipynb*
+xgboost/nohup.out
+xgboost/*.model
+xgboost/*.npy
