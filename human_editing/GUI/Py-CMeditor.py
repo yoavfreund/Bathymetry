@@ -41,7 +41,6 @@ Documentation created using Sphinx.
 # IMPORT MODULES~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 import sys
 import matplotlib as mpl
-from matplotlib import use
 mpl.use('WXAgg')
 from matplotlib import pyplot as plt
 import wx
@@ -54,6 +53,7 @@ import numpy as np
 from numpy import size
 import vtk
 from vtk.wx.wxVTKRenderWindowInteractor import wxVTKRenderWindowInteractor
+from vtk.util.numpy_support import vtk_to_numpy
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -117,7 +117,7 @@ class PyCMeditor(wx.Frame):
         self.mgr.AddPane(self.rightPaneltop, aui.AuiPaneInfo().Name('righttop').Top())
         self.mgr.AddPane(self.rightPanelbottom, aui.AuiPaneInfo().Name('rightbottom').CenterPane())
         self.mgr.AddPane(self.ConsolePanel, aui.AuiPaneInfo().Name('console').Bottom().Caption("Console"))
-        self.mgr.GetPaneByName('console').Hide()  # HIDE PYTHON CONSOLE BY DEFAULT
+        # self.mgr.GetPaneByName('console').Hide()  # HIDE PYTHON CONSOLE BY DEFAULT
         self.mgr.Update()
 
         '# %CREATE PROGRAM MENUBAR & TOOLBAR (PLACED AT TOP OF FRAME)'
@@ -638,6 +638,8 @@ class PyCMeditor(wx.Frame):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# 3D VIEWER CLASSES
+# TODO vtk.vtkRadiusOutlierRemoval
 
 class ThreeDimViewer(wx.Frame):
     def __init__(self, parent, id, title, xyz_data_file, predicted_xyz_file):
@@ -673,6 +675,8 @@ class ThreeDimViewer(wx.Frame):
         self.renderer = vtk.vtkRenderer()
         self.renderer.SetBackground(0.8, 0.8, 0.8)
 
+        '# % ADD MOUSE INTERACTION TOOLS --------------------------------------------------------'
+
         '# % CREATE TOOL BUTTONS ----------------------------------------------------------------'
 
         '# % PICKER BUTTON'
@@ -702,15 +706,37 @@ class ThreeDimViewer(wx.Frame):
         self.left_box.AddMany([self.picker_button, self.size_text, self.size_slider, self.flag_button,
                                self.delaunay_button, self.predicted_delaunay_button])
 
-        '# % CALL THE RENDERING FUNCTION'
         '# % RENDER THE XYZ DATA IN 3D'
         self.xyz_data_file = xyz_data_file
         self.do_render()
 
+        '#  % MAKE THE PREDICTED XYZ DATA AN OBJECT'
         self.predicted_xyz_file = predicted_xyz_file
 
         '# % SET SIZERS'
         # self.tdv_sizer()
+
+        # '# % CREATE VTK PICKER OBJECTS'
+        # self.cell_picker = vtk.vtkCellPicker()
+        # self.node_picker = vtk.vtkPointPicker()
+        # self.cell_picker.SetTolerance(0.001)
+        # self.node_picker.SetTolerance(0.001)
+        #
+        # self.area_picker = vtk.vtkAreaPicker()  # vtkRenderedAreaPicker?
+        # self.rubber_band_style = vtk.vtkInteractorStyleRubberBandPick()
+
+        self.base_style = vtk.vtkInteractorStyleTrackballCamera()
+        self.Interactor.SetInteractorStyle(self.base_style)
+        self.current_style = str('base_style')
+
+        '# % SET VTK OBSERVERS'
+        self.Interactor.AddObserver("KeyPressEvent", self.keyPressEvent)
+
+        '# % SET PICKER STYLE - SO LEFT MOUSE CLICK ALLOWS SELECTION OF A SINGLE POINT'
+        # self.picker_style = MouseInteractorHighLightActor(self.renderWindow, self.pointcloud)
+        # self.picker_style.SetDefaultRenderer(self.renderer)
+        # self.Interactor.SetInteractorStyle(self.picker_style)
+        # self.Interactor.AddObserver("LeftButtonPressEvent", self.picker_style.leftButtonPressEvent)        self.area_picker = vtk.vtkAreaPicker()
 
         '#PLACE BOX SIZERS IN CORRECT PANELS'
         self.tdv_top_panel.SetSizerAndFit(self.box_top)
@@ -719,10 +745,6 @@ class ThreeDimViewer(wx.Frame):
         self.tdv_left_panel.SetSize(self.GetSize())
 
         self.tdv_mgr.Update()
-
-    def tdv_sizer(self):
-        """# %CREATE AND FIT BOX SIZERS"""
-        pass
 
     def do_render(self):
         """
@@ -779,21 +801,18 @@ class ThreeDimViewer(wx.Frame):
 
         self.renderer.AddActor(self.outlineActor)
 
+    def keyPressEvent(self, obj, event):
+        key = self.Interactor.GetKeyCode()
+
+        '''# %ACTIVATE POINT PICKER'''
+        if key == 'r':
+            self.rubber_picker()
+
     def set_point_size(self, value):
         self.size = float(self.size_slider.GetValue())
         self.pointcloud.vtkActor.GetProperty().SetPointSize(self.size)
         self.pointcloud.vtkActor.Modified()
         self.renderWindow.Render()
-        return
-
-    def middleButtonPressEvent(self, obj, event):
-        print("Middle Button pressed")
-        self.OnMiddleButtonDown()
-        return
-
-    def middleButtonReleaseEvent(self, obj, event):
-        print("Middle Button released")
-        self.OnMiddleButtonUp()
         return
 
     def delaunay(self, event):
@@ -889,6 +908,62 @@ class ThreeDimViewer(wx.Frame):
             self.renderer.AddActor(self.predicted_meshActor)
             self.renderWindow.Render()
 
+    def rubber_picker(self):
+        print("r key pressed")
+        print("current style = %s" % self.current_style)
+        if self.current_style is 'rubber_band':
+            print('setting style as base_style')
+            self.base_style = vtk.vtkInteractorStyleTrackballCamera()
+            self.Interactor.SetInteractorStyle(self.base_style)
+            self.current_style = str('base_style')
+
+            '# % REMOVE THE CURRENT HIGHLIGHT ACTOR (IF THERE IS ONE) FROM SCREEN'
+            if self.rubber_style.selected_actor:
+                self.renderer.RemoveActor(self.rubber_style.selected_actor)
+                del self.rubber_style.selected_actor
+                self.renderWindow.Render()
+            else:
+                pass
+        else:
+            print('setting style as rubber_band')
+            self.area_picker = vtk.vtkAreaPicker()
+            self.Interactor.SetPicker(self.area_picker)
+            self.rubber_style = RubberBand(self.renderWindow, self.renderer, self.pointcloud, self.Interactor,
+                                           self.area_picker)
+            self.Interactor.SetInteractorStyle(self.rubber_style)
+            self.current_style = str('rubber_band')
+
+    # def tdv_sizer(self):
+    #     """# %CREATE AND FIT BOX SIZERS"""
+    #     pass
+
+    # def middleButtonPressEvent(self, obj, event):
+    #     print("Middle Button pressed")
+    #     self.OnMiddleButtonDown()
+    #     return
+    #
+    # def middleButtonReleaseEvent(self, obj, event):
+    #     print("Middle Button released")
+    #     self.OnMiddleButtonUp()
+    #     return
+    #
+    # def transformPolyData(actor):
+    #     polyData = vtk.vtkPolyData()
+    #     polyData.DeepCopy(actor.GetMapper().GetInput())
+    #     transform = vtk.vtkTransform()
+    #     transform.SetMatrix(actor.GetMatrix())
+    #     fil = vtk.vtkTransformPolyDataFilter()
+    #     fil.SetTransform(transform)
+    #     fil.SetInputDataObject(polyData)
+    #     fil.Update()
+    #     polyData.DeepCopy(fil.GetOutput())
+    #     return polyData;
+    #
+    # def onKeyPressEvent(self, event):
+    #     key = self.GetKeyCode()
+    #     if (key == 'd'):
+    #         print("d key was pressed")
+
 class VtkPointCloud:
     def __init__(self, xyz_data_file, maxNumPoints=1e6):
         self.xyz_data_file = xyz_data_file
@@ -924,6 +999,85 @@ class VtkPointCloud:
         self.vtkPolyData.GetPointData().SetScalars(self.xyz_depth)
         self.vtkPolyData.GetPointData().SetActiveScalars('DepthArray')
 
+# Define interaction style
+class RubberBand(vtk.vtkInteractorStyleRubberBandPick):
+    def __init__(self, renderWindow, renderer, pointcloud, interactor, area_picker):
+        print("entering rubber band mode")
+        # self.LastPickedActor = None
+        # self.LastPickedProperty = vtk.vtkProperty()
+        self.renderWindow = renderWindow
+        self.renderer = renderer
+        self.pointcloud = pointcloud
+        self.Interactor = interactor
+        self.selected_mapper = vtk.vtkDataSetMapper()
+        self.selected_actor = vtk.vtkActor()
+        self.selected_actor.SetMapper(self.selected_mapper)
+        self.area_picker = area_picker
+
+        '# % LINK BUTTON PRESS EVENTS'
+        self.Interactor.AddObserver("LeftButtonPressEvent", self.leftButtonPressEvent)
+        self.Interactor.AddObserver("LeftButtonReleaseEvent", self.LeftButtonReleaseEvent)
+
+    #
+    def leftButtonPressEvent(self, obj, event):
+        print("LEFT BUTTON PRESSED")
+        self.OnLeftButtonDown()
+        '# % REMOVE THE CURRENT HIGHLIGHT ACTOR (IF THERE IS ONE) FROM SCREEN'
+        self.renderer.RemoveActor(self.selected_actor)
+        self.renderWindow.Render()
+
+    def LeftButtonReleaseEvent(self, obj, event):
+        print("LEFT BUTTON RELEASED")
+        self.OnLeftButtonUp()
+
+        self.frustum = self.area_picker.GetFrustum()
+
+        self.extract_geometry = vtk.vtkExtractGeometry()
+        self.extract_geometry.SetImplicitFunction(self.frustum)
+        self.extract_geometry.SetInputData(self.pointcloud.vtkPolyData)
+        self.extract_geometry.Update()
+
+        self.glyph_filter = vtk.vtkVertexGlyphFilter()
+        self.glyph_filter.SetInputConnection(self.extract_geometry.GetOutputPort())
+        self.glyph_filter.Update()
+
+        self.selected = self.glyph_filter.GetOutput()
+        self.p1 = self.selected.GetNumberOfPoints()
+        self.p2 = self.selected.GetNumberOfCells()
+        print("Number of points = %s" % self.p1)
+        print("Number of cells = %s" % self.p2)
+
+        self.selected_mapper.SetInputData(self.selected)
+        self.point_data = self.selected.GetPointData()
+
+        # print("POINT DATA =")
+        # print(self.point_data)
+        #
+        # print("ACTOR =")
+        # print(self.selected_actor)
+        self.selected_actor.GetProperty().SetColor(0.5, 0.5, 0.5) #(R,G,B)
+        self.selected_actor.GetProperty().SetPointSize(10)
+
+        self.processed_picked()
+
+    def processed_picked(self):
+        self.renderer.AddActor(self.selected_actor)
+        self.renderWindow.Render()
+
+        self.ids = vtk.vtkIdFilter()
+        self.ids.SetInputData(self.selected)
+        print(self.ids)
+
+        self.cell_ids = vtk_to_numpy(self.selected.GetArray('Ids'))
+
+        # print(self.cell_ids)
+        # self.point_data
+        # self.ids = vtk.vtkIdTypeArray.SafeDownCast(self.selected.GetPointData().GetArray("OriginalIds"))
+        # print(self.ids)
+        # self.count = self.ids.GetTypedTuple()
+        # for i in range(self.ids.GetTypedTuple()):
+        #     print("Id %s : %s" % (i, self.ids.GetValue(i)))
+
 '''# %START SOFTWARE'''
 if __name__ == "__main__":
     app = wx.App(False)
@@ -932,3 +1086,69 @@ if __name__ == "__main__":
     app.frame.CenterOnScreen()
     app.frame.Show()
     app.MainLoop()
+
+
+
+
+
+
+
+# class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
+#     def __init__(self, renderWindow, pointcloud):
+#         self.LastPickedActor = None
+#         self.LastPickedProperty = vtk.vtkProperty()
+#         self.renderWindow = renderWindow
+#         self.pointcloud = pointcloud
+#
+    # def leftButtonPressEvent(self, obj, event):
+    #     print("LEFT BUTTON PRESSED")
+    #     clickPos = self.renderWindow.GetInteractor().GetEventPosition()
+    #
+    #     picker = vtk.vtkPropPicker()
+    #     picker.Pick(clickPos[0], clickPos[1], 0, self.GetDefaultRenderer())
+    #
+    #     # get the new
+    #     self.NewPickedActor = picker.GetActor()
+    #
+    #     # If something was selected
+    #     if self.NewPickedActor:
+    #         # If we picked something before, reset its property
+    #         print("GOT PICKACTOR")
+    #         # if self.LastPickedActor:
+    #         #     self.LastPickedActor.GetProperty().DeepCopy(self.LastPickedProperty)
+    #
+    #         # Save the property of the picked actor so that we can
+    #         # restore it next time
+    #         # self.LastPickedProperty.DeepCopy(self.NewPickedActor.GetProperty())
+    #         # Highlight the picked actor by changing its properties
+    #         #self.NewPickedActor.GetProperty().Color()
+    #         self.NewPickedActor.GetProperty().SetColor(1.0, 1.0, 1.0)
+    #         self.pointcloud.vtkActor.Modified()
+    #         self.renderWindow.Render()
+    #
+    #         clickPos = self.renderWindow.GetInteractor().GetEventPosition()
+    #         print(clickPos, self.GetInteractor().GetPicker().GetPointId())
+    #         #self.NewPickedActor.GetProperty().SetDiffuse(1.0)
+    #         #self.NewPickedActor.GetProperty().SetSpecular(0.0)
+    #         # save the last picked actor
+    #         # self.LastPickedActor = self.NewPickedActor
+    #
+    #     self.OnLeftButtonDown()
+    #     self.update()
+    #     # return
+    #
+    # def leftButtonPressEvent(self, obj, event):
+    #     print("Left Button pressed")
+    #
+    #     self.OnLeftButtonDown()
+    #     clickPos = self.renderWindow.GetInteractor().GetEventPosition()
+    #     self.GetInteractor().GetPicker().Pick(self.GetInteractor().GetEventPosition()[0],
+    #                                           self.GetInteractor().GetEventPosition()[1], 0,
+    #                                           self.GetInteractor().GetRenderWindow().GetRenderers().GetFirstRenderer())
+    #     self.GetInteractor().GetPicker().GetActor().GetProperty().SetColor(0.2, 1, 0.2)
+    #     print(clickPos, self.GetInteractor().GetPicker().GetPointId())
+
+    # def update(self):
+    #     self.pointcloud.vtkActor.Modified()
+    #     self.renderWindow.Render()
+
