@@ -511,6 +511,16 @@ class PyCMeditor(wx.Frame):
             wx.MessageDialog(self, -1, error_message, "Load Error")
             raise
 
+        '# %GET DATA AS cm FILE DATA AS NUMPY ARRAYS'
+        self.xyz = self.cm[:, 1:4]
+        self.xyz = np.divide(self.xyz, (1.0, 1.0, 10000.0))  # % DIVIDE TO MAKE Z SCALE ON SAME ORDER OF MAG AS X&Z
+        self.xyz_cm_id = self.cm[:, 0].astype(int)  # % GET CM FILE IDs
+        self.xyz_width = self.cm.shape[1]
+        self.xyz_meta_data = self.cm[:, 4:self.xyz_width]
+        self.xyz_point_flags = np.zeros(shape=(1, len(self.xyz)))
+        self.xyz_cm_line_number = np.linspace(0, len(self.xyz), (len(self.xyz)+1))
+
+        '# %UPDATE MPL CANVAS'
         self.draw()
 
     def open_predicted_cm_file(self, event):
@@ -537,10 +547,19 @@ class PyCMeditor(wx.Frame):
             error_message = "ERROR IN LOADING PROCESS - FILE MUST BE ASCII SPACE DELIMITED"
             wx.MessageDialog(self, -1, error_message, "Load Error")
             raise
+
         self.draw()
         self.aspect = 1
         self.set_nav_aspect()
         self.draw()
+
+        '# %GET DATA AS cm FILE DATA AS NUMPY ARRAYS'
+        self.predicted_xyz = self.predicted_cm[:, 1:4]
+        self.predicted_xyz = np.divide(self.predicted_xyz, (1.0, 1.0, 10000.0))  # %DIVIDE TO MAKE Z SCALE ON SAME
+        '# %ORDER OF MAG AS X&Z'
+        self.id = self.predicted_xyz[:, 0]  # %GET CM FILE IDs
+        self.predicted_xyz_width = self.predicted_cm.shape[1]
+        self.predicted_xyz_meta_data = self.predicted_cm[:, 4:self.xyz_width]
 
     def plot_surface(self, event):
         """CREATE SURF OF XYZ POINTS"""
@@ -558,24 +577,24 @@ class PyCMeditor(wx.Frame):
 
     def button_three(self, event):
         self.plot_threed()
-        #self.SetTitle("STL File Viewer: " + self.p1.filename)
-        #self.statusbar.SetStatusText("Use W,S,F,R keys and mouse to interact with the model ")
+        # self.SetTitle("STL File Viewer: " + self.p1.filename)
+        # self.statusbar.SetStatusText("Use W,S,F,R keys and mouse to interact with the model ")
 
     def plot_threed(self, event):
-        """PLOT 3D VIEW OF DATA"""
+        """
+        PLOT 3D VIEW OF DATA
+        """
 
-        '#  %SET INPUT DATA'
-        self.xyz = self.cm[:, 1:4]
-        self.xyz = np.divide(self.xyz, (1.0, 1.0, 10000.0))  # % DIVIDE TO MAKE Z SCALE ON SAME ORDER OF MAG AS X&Z
-
+        '# %ATTEMPT TO OPEN PREDICTED XYZ BATHYMETRY DATA'
         try:
             self.predicted_xyz = self.predicted_cm[:, 1:4]
             self.predicted_xyz = np.divide(self.predicted_xyz, (1.0, 1.0, 10000.0))
         except AttributeError:
             self.predicted_xyz = None
 
-        '# % OPEN A WINDOW AND CREATE A RENDERER'
-        self.tdv = ThreeDimViewer(self, -1, 'Modify Current Model', self.xyz, self.predicted_xyz)
+        '# %OPEN A vtk 3D VIEWER WINDOW AND CREATE A RENDER'
+        self.tdv = ThreeDimViewer(self, -1, 'Modify Current Model', self.cm, self.xyz, self.xyz_cm_id, self.xyz_meta_data,
+                                  self.xyz_point_flags, self.xyz_cm_line_number, self.predicted_xyz)
         self.tdv.Show(True)
 
         sys.t = self.tdv
@@ -642,7 +661,8 @@ class PyCMeditor(wx.Frame):
 # TODO vtk.vtkRadiusOutlierRemoval
 
 class ThreeDimViewer(wx.Frame):
-    def __init__(self, parent, id, title, xyz_data_file, predicted_xyz_file):
+    def __init__(self, parent, id, title, cm, xyz_data_file, xyz_cm_id, xyz_meta_data, xyz_point_flags,
+                                                                    xyz_cm_line_number, predicted_xyz_file):
         wx.Frame.__init__(self, None, wx.ID_ANY, '3D Viewer', size=(1500, 1100))
 
         '# %START AUI WINDOW MANAGER'
@@ -697,17 +717,27 @@ class ThreeDimViewer(wx.Frame):
         self.delaunay_button = wx.Button(self.tdv_left_panel, -1, "Grid", size=(150, 20))
         self.delaunay_button.Bind(wx.EVT_BUTTON, self.delaunay)
 
-        '# % ADD DELAUNAY BUTTON'
+        '# % ADD PREDICTED DELAUNAY BUTTON'
         self.predicted_delaunay_button = wx.Button(self.tdv_left_panel, -1, "Grid Predicted", size=(150, 20))
         self.predicted_delaunay_button.Bind(wx.EVT_BUTTON, self.render_predicted)
 
+        '# % ADD DELAUNAY BUTTON'
+        self.delete_selected_button = wx.Button(self.tdv_left_panel, -1, "Delete", size=(150, 20))
+        self.delete_selected_button.Bind(wx.EVT_BUTTON, self.delete_selected)
+
+
         ' #% ADD CURRENT COORDINATE BOXES'
-        self.left_box = wx.FlexGridSizer(cols=1, rows=7, hgap=5, vgap=5)
+        self.left_box = wx.FlexGridSizer(cols=1, rows=8, hgap=5, vgap=5)
         self.left_box.AddMany([self.picker_button, self.size_text, self.size_slider, self.flag_button,
-                               self.delaunay_button, self.predicted_delaunay_button])
+                               self.delaunay_button, self.predicted_delaunay_button, self.delete_selected_button])
 
         '# % RENDER THE XYZ DATA IN 3D'
+        self.cm = cm
         self.xyz_data_file = xyz_data_file
+        self.xyz_cm_id = xyz_cm_id
+        self.xyz_meta_data = xyz_meta_data
+        self.xyz_point_flags = xyz_point_flags
+        self.xyz_cm_line_number = xyz_cm_line_number
         self.do_render()
 
         '#  % MAKE THE PREDICTED XYZ DATA AN OBJECT'
@@ -725,6 +755,7 @@ class ThreeDimViewer(wx.Frame):
         # self.area_picker = vtk.vtkAreaPicker()  # vtkRenderedAreaPicker?
         # self.rubber_band_style = vtk.vtkInteractorStyleRubberBandPick()
 
+        '# % SET DEFAULT INTERACTION STYLE'
         self.base_style = vtk.vtkInteractorStyleTrackballCamera()
         self.Interactor.SetInteractorStyle(self.base_style)
         self.current_style = str('base_style')
@@ -744,6 +775,9 @@ class ThreeDimViewer(wx.Frame):
         self.tdv_top_panel.SetSize(self.GetSize())
         self.tdv_left_panel.SetSize(self.GetSize())
 
+        '# % INIT SWITCHES'
+        self.grid_created = 0
+
         self.tdv_mgr.Update()
 
     def do_render(self):
@@ -753,12 +787,16 @@ class ThreeDimViewer(wx.Frame):
         """
 
         '  # %Render XYZ POINTS'
-        self.pointcloud = VtkPointCloud(self.xyz_data_file)
-        for k in range(size(self.xyz_data_file, 0)):
+        self.pointcloud = VtkPointCloud(self.xyz_data_file, self.xyz_cm_id, self.xyz_meta_data,
+                                        self.xyz_cm_line_number, self.xyz_point_flags, self.cm)
+        for k in range(len(self.xyz_data_file)):
             point = self.xyz_data_file[k]
-            self.pointcloud.addPoint(point)
+            xyz_cm_id = self.xyz_cm_id[k]
+            xyz_cm_line_number = self.xyz_cm_line_number[k]
+            self.pointcloud.addPoint(point, xyz_cm_id, xyz_cm_line_number)
 
         self.renderer.AddActor(self.pointcloud.vtkActor)
+        self.pointcloud_vtkactor = self.pointcloud.vtkActor
 
         '# % Render Window'
         # self.renderer.ResetCamera()
@@ -766,7 +804,7 @@ class ThreeDimViewer(wx.Frame):
         self.renderWindow.AddRenderer(self.renderer)
         self.Interactor.SetRenderWindow(self.renderWindow)
 
-        '# % Add 3D AXES'
+        '# % Add 3D AXES WIDGET'
         self.axesactor = vtk.vtkAxesActor()
         self.axes = vtk.vtkOrientationMarkerWidget()
         self.axes.SetOrientationMarker(self.axesactor)
@@ -786,6 +824,7 @@ class ThreeDimViewer(wx.Frame):
         self.sb.SetHeight(0.05)
         self.sb.GetPositionCoordinate().SetValue(0.7, 0.05)
 
+        '#  % CREATE XYZ OUTLINE AXES GRID'
         self.outlineMapper = self.pointcloud.vtkActor.GetMapper()
         # self.outlineMapper.SetScalarRange
         self.outlineActor = vtk.vtkCubeAxesActor()
@@ -798,50 +837,42 @@ class ThreeDimViewer(wx.Frame):
         self.outlineActor.DrawXGridlinesOn()
         self.outlineActor.DrawYGridlinesOn()
         self.outlineActor.DrawZGridlinesOn()
-
         self.renderer.AddActor(self.outlineActor)
 
-    def keyPressEvent(self, obj, event):
-        key = self.Interactor.GetKeyCode()
+        '#  % CREATE BALLOON INFO WIDGET'
+        self.balloonRep = vtk.vtkBalloonRepresentation()
+        self.balloonRep.SetBalloonLayoutToImageRight()
 
-        '''# %ACTIVATE POINT PICKER'''
-        if key == 'r':
-            self.rubber_picker()
-
-    def set_point_size(self, value):
-        self.size = float(self.size_slider.GetValue())
-        self.pointcloud.vtkActor.GetProperty().SetPointSize(self.size)
-        self.pointcloud.vtkActor.Modified()
-        self.renderWindow.Render()
-        return
+        self.balloonWidget = vtk.vtkBalloonWidget()
+        self.balloonWidget.SetInteractor(self.iren)
+        self.balloonWidget.SetRepresentation(self.balloonRep)
+        # self.balloonWidget.AddBalloon(self.pointcloud.vtkActor, self.pointcloud.cm_poly_data.GetPoints().GetPoint())
 
     def delaunay(self, event):
-
-        try:
+        """CREATE 3D GRID"""
+        if self.grid_created == 1:
             if self.meshActor.GetVisibility() == 1:
                 self.meshActor.SetVisibility(False)
             else:
                 self.meshActor.SetVisibility(True)
             self.renderWindow.Render()
             print("meshActor exists")
-        except AttributeError:
+        else:
+            self.grid_created = 1
             self.cell_array = vtk.vtkCellArray()
-            self.boundary = self.pointcloud.vtkPolyData
-            self.boundary.SetPoints(self.pointcloud.vtkPolyData.GetPoints())
+            self.boundary = self.pointcloud.cm_poly_data
+            self.boundary.SetPoints(self.pointcloud.cm_poly_data.GetPoints())
             self.boundary.SetPolys(self.cell_array)
 
             self.delaunay = vtk.vtkDelaunay2D()
-            if vtk.VTK_MAJOR_VERSION <= 5:
-                self.delaunay.SetInput(self.pointcloud.vtkPolyData.GetOutput())
-                self.delaunay.SetSource(self.boundary)
-            else:
-                self.delaunay.SetInputData(self.pointcloud.vtkPolyData)
-                self.delaunay.SetSourceData(self.boundary)
+
+            self.delaunay.SetInputData(self.pointcloud.cm_poly_data)
+            self.delaunay.SetSourceData(self.boundary)
 
             self.delaunay.Update()
 
             self.meshMapper = vtk.vtkPolyDataMapper()
-            self.meshMapper.SetInputData(self.pointcloud.vtkPolyData)
+            self.meshMapper.SetInputData(self.pointcloud.cm_poly_data)
             self.meshMapper.SetColorModeToDefault()
             self.meshMapper.SetScalarRange(self.xyz_data_file[:, 2].min(), self.xyz_data_file[:, 2].max())
             self.meshMapper.SetScalarVisibility(1)
@@ -881,22 +912,22 @@ class ThreeDimViewer(wx.Frame):
             print("predicted_meshActor exists")
         except AttributeError:
             self.cell_array = vtk.vtkCellArray()
-            self.boundary = self.predicted_pointcloud.vtkPolyData
-            self.boundary.SetPoints(self.predicted_pointcloud.vtkPolyData.GetPoints())
+            self.boundary = self.predicted_pointcloud.cm_poly_data
+            self.boundary.SetPoints(self.predicted_pointcloud.cm_poly_data.GetPoints())
             self.boundary.SetPolys(self.cell_array)
 
             self.delaunay = vtk.vtkDelaunay2D()
             if vtk.VTK_MAJOR_VERSION <= 5:
-                self.delaunay.SetInput(self.predicted_pointcloud.vtkPolyData.GetOutput())
+                self.delaunay.SetInput(self.predicted_pointcloud.cm_poly_data.GetOutput())
                 self.delaunay.SetSource(self.boundary)
             else:
-                self.delaunay.SetInputData(self.predicted_pointcloud.vtkPolyData)
+                self.delaunay.SetInputData(self.predicted_pointcloud.cm_poly_data)
                 self.delaunay.SetSourceData(self.boundary)
 
             self.delaunay.Update()
 
             self.meshMapper = vtk.vtkPolyDataMapper()
-            self.meshMapper.SetInputData(self.predicted_pointcloud.vtkPolyData)
+            self.meshMapper.SetInputData(self.predicted_pointcloud.cm_poly_data)
             self.meshMapper.SetColorModeToDefault()
             self.meshMapper.SetScalarRange(self.predicted_xyz_file[:, 2].min(), self.predicted_xyz_file[:, 2].max())
             self.meshMapper.SetScalarVisibility(1)
@@ -907,6 +938,13 @@ class ThreeDimViewer(wx.Frame):
 
             self.renderer.AddActor(self.predicted_meshActor)
             self.renderWindow.Render()
+
+    def set_point_size(self, value):
+        self.size = float(self.size_slider.GetValue())
+        self.pointcloud.vtkActor.GetProperty().SetPointSize(self.size)
+        self.pointcloud.vtkActor.Modified()
+        self.renderWindow.Render()
+        return
 
     def rubber_picker(self):
         print("r key pressed")
@@ -929,10 +967,86 @@ class ThreeDimViewer(wx.Frame):
             self.area_picker = vtk.vtkAreaPicker()
             self.Interactor.SetPicker(self.area_picker)
             self.rubber_style = RubberBand(self.renderWindow, self.renderer, self.pointcloud, self.Interactor,
-                                           self.area_picker)
+                                           self.area_picker, self.cm)
             self.Interactor.SetInteractorStyle(self.rubber_style)
             self.current_style = str('rubber_band')
 
+    def transform_points(self):
+        self.current_data = vtk.vtkPolyData()
+        # self.current_data.DeepCopy(self.pointcloud_vtkactor.GetMapper().GetInput())
+        #
+        # transform = vtk.vtkTransform()
+        # transform.SetMatrix(self.pointcloud_vtkactor.GetMatrix())
+        #
+        # fil = vtk.vtkTransformPolyDataFilter()
+        # fil.SetTransform(transform)
+        # fil.SetInputDataObject(polyData)
+        # fil.Update()
+        # polyData.DeepCopy(fil.GetOutput())
+        # return polyData;
+
+    def delete_selected(self, event):
+        """CREATES A NEW NUMPY ARRAY of the cm FILE WITH SELECTED NODES REMOVED"""
+        print("Deleting")
+        try:
+            '# % DELETE SELECTED VALUES'
+            self.selected_cm_line_number = vtk_to_numpy(
+                                    self.rubber_style.selected.GetPointData().GetArray("cm_line_number")).astype(int)
+            self.new_cm = np.delete(self.cm, self.selected_cm_line_number, 0)
+
+            '# % REPLACE CURRENT RENDER WITH NEW DATA'
+            self.re_render()
+
+            '# % UPDATE RENDER'
+            self.renderWindow.Render()
+
+        except AttributeError:
+            print("attr error")
+            pass
+
+    def re_render(self):
+        """
+        # % RE RENDER 3D POINTS AFTER REMOVING SELECTION
+        """
+        print("re rendering")
+        self.renderer.RemoveActor(self.pointcloud.vtkActor)
+        del self.pointcloud.vtkActor
+        self.renderer.RemoveActor(self.rubber_style.selected_actor)
+
+        self.cm = self.new_cm
+
+        self.xyz = self.cm[:, 1:4]
+        self.xyz_data_file = np.divide(self.xyz, (1.0, 1.0, 10000.0))  # % DIVIDE TO MAKE Z SCALE ON SAME ORDER OF MAG AS X&Z
+        self.xyz_cm_id = self.cm[:, 0].astype(int)  # % GET CM FILE IDs
+        self.xyz_width = self.cm.shape[1]
+        self.xyz_meta_data = self.cm[:, 4:self.xyz_width]
+        self.xyz_point_flags = np.zeros(shape=(1, len(self.xyz)))
+        self.xyz_cm_line_number = np.linspace(0, len(self.xyz), (len(self.xyz)+1))
+
+        '  # %Render XYZ POINTS'
+        del self.pointcloud
+        self.pointcloud = VtkPointCloud(self.xyz_data_file, self.xyz_cm_id, self.xyz_meta_data,
+                                        self.xyz_cm_line_number, self.xyz_point_flags, self.cm)
+        for k in range(len(self.xyz)):
+            point = self.xyz_data_file[k]
+            xyz_cm_id = self.xyz_cm_id[k]
+            xyz_cm_line_number = self.xyz_cm_line_number[k]
+            self.pointcloud.addPoint(point, xyz_cm_id, xyz_cm_line_number)
+
+        self.renderer.AddActor(self.pointcloud.vtkActor)
+
+        if self.grid_created == 1:
+            self.grid_created = 0
+            self.renderer.AddActor(self.meshActor)
+
+    def keyPressEvent(self, obj, event):
+        key = self.Interactor.GetKeyCode()
+
+        '''# %ACTIVATE POINT PICKER'''
+        if key == 'r':
+            self.rubber_picker()
+        if key == 'd':
+            self.delete_selected()
     # def tdv_sizer(self):
     #     """# %CREATE AND FIT BOX SIZERS"""
     #     pass
@@ -965,46 +1079,77 @@ class ThreeDimViewer(wx.Frame):
     #         print("d key was pressed")
 
 class VtkPointCloud:
-    def __init__(self, xyz_data_file, maxNumPoints=1e6):
-        self.xyz_data_file = xyz_data_file
+    def __init__(self, xyz_data_file, xyz_cm_id, xyz_meta_data, xyz_cm_line_number, xyz_point_flags, cm,
+                 maxNumPoints=10e6):
+        """CREATE vtk PointCloud (XYZ SCATTER PLOT OF BATHYMETRY DATA"""
+
+        '# %INITIALISE POINT DATA'
+        self.cm = cm
+        self.xyz_data_file = xyz_data_file  # % THIS IS THE XYZ DATA
+        self.xyz_cm_id = xyz_cm_id  # % THIS IS THE .cm ID
+        self.xyz_meta_data = xyz_meta_data  # % THIS CONTAINS ALL ADDITIONAL COLUMNS
+        self.xyz_cm_line_number = xyz_cm_line_number
+        self.xyz_point_flags = xyz_point_flags
         self.maxNumPoints = maxNumPoints
 
+        '# %CREATE vtkPolyData OBJECT'
+        self.cm_poly_data = vtk.vtkPolyData()
+
+        self.xyz_points = vtk.vtkPoints()
+        self.cm_poly_data.SetPoints(self.xyz_points)
+
+        '# %CREATE vtkPolyData VERTICES'
+        self.xyz_cells = vtk.vtkCellArray()
+        self.cm_poly_data.SetVerts(self.xyz_cells)
+        # self.xyz_cells.SetName('XYArray')
+
+        '# %CREATE vtkPolyData SCALAR VALUES'
+
+        '# % SCALAR 1 = cm file line number - This is used for numpy array data manipulation'
+        self.cm_line_number = vtk.vtkDoubleArray()
+        self.cm_line_number.SetName('cm_line_number')
+        self.cm_poly_data.GetPointData().AddArray(self.cm_line_number)
+
+        '# % SCALAR 2 = cm file id'
+        self.cm_id = vtk.vtkDoubleArray()
+        self.cm_id.SetName('cm_id')
+        self.cm_poly_data.GetPointData().AddArray(self.cm_id)
+
+        '# % SCALAR 3 = DEPTH'
+        self.xyz_depth = vtk.vtkDoubleArray()
+        self.xyz_depth.SetName('Z')
+        self.cm_poly_data.GetPointData().AddArray(self.xyz_depth)
+        self.cm_poly_data.GetPointData().SetScalars(self.xyz_depth)
+        self.cm_poly_data.GetPointData().SetActiveScalars('Z')
+        # self.cm_poly_data.GetPointData().SetActiveScalars('cm_id')
+
         '# % SET COLOR MAPPER'
-        self.vtkPolyData = vtk.vtkPolyData()
-        self.clearPoints()
         self.mapper = vtk.vtkPolyDataMapper()
-        self.mapper.SetInputData(self.vtkPolyData)
+        self.mapper.SetInputData(self.cm_poly_data)
         self.mapper.SetColorModeToDefault()
         self.mapper.SetScalarRange(self.xyz_data_file[:, 2].min(), self.xyz_data_file[:, 2].max())
         self.mapper.SetScalarVisibility(1)
         self.vtkActor = vtk.vtkActor()
         self.vtkActor.SetMapper(self.mapper)
 
-    def addPoint(self, point):
+    def addPoint(self, point, xyz_cm_id, xyz_cm_line_number):
         if self.xyz_points.GetNumberOfPoints() < self.maxNumPoints:
             pointId = self.xyz_points.InsertNextPoint(point[:])
             self.xyz_depth.InsertNextValue(point[2])
             self.xyz_cells.InsertNextCell(1)
             self.xyz_cells.InsertCellPoint(pointId)
+            self.cm_id.InsertNextValue(xyz_cm_id)
+            self.cm_line_number.InsertNextValue(xyz_cm_line_number)
         else:
+            print("ERROR: MORE THAN 10e6 POINTS IN FILE")
             return
 
-    def clearPoints(self):
-        self.xyz_points = vtk.vtkPoints()
-        self.xyz_cells = vtk.vtkCellArray()
-        self.xyz_depth = vtk.vtkDoubleArray()
-        self.xyz_depth.SetName('DepthArray')
-        self.vtkPolyData.SetPoints(self.xyz_points)
-        self.vtkPolyData.SetVerts(self.xyz_cells)
-        self.vtkPolyData.GetPointData().SetScalars(self.xyz_depth)
-        self.vtkPolyData.GetPointData().SetActiveScalars('DepthArray')
-
-# Define interaction style
 class RubberBand(vtk.vtkInteractorStyleRubberBandPick):
-    def __init__(self, renderWindow, renderer, pointcloud, interactor, area_picker):
+    def __init__(self, renderWindow, renderer, pointcloud, interactor, area_picker, cm):
         print("entering rubber band mode")
         # self.LastPickedActor = None
         # self.LastPickedProperty = vtk.vtkProperty()
+        self.cm = cm
         self.renderWindow = renderWindow
         self.renderer = renderer
         self.pointcloud = pointcloud
@@ -1034,7 +1179,7 @@ class RubberBand(vtk.vtkInteractorStyleRubberBandPick):
 
         self.extract_geometry = vtk.vtkExtractGeometry()
         self.extract_geometry.SetImplicitFunction(self.frustum)
-        self.extract_geometry.SetInputData(self.pointcloud.vtkPolyData)
+        self.extract_geometry.SetInputData(self.pointcloud.cm_poly_data)
         self.extract_geometry.Update()
 
         self.glyph_filter = vtk.vtkVertexGlyphFilter()
@@ -1047,30 +1192,58 @@ class RubberBand(vtk.vtkInteractorStyleRubberBandPick):
         print("Number of points = %s" % self.p1)
         print("Number of cells = %s" % self.p2)
 
+        '# % COLOR SELECTED POINTS RED'
         self.selected_mapper.SetInputData(self.selected)
-        self.point_data = self.selected.GetPointData()
-
-        # print("POINT DATA =")
-        # print(self.point_data)
-        #
-        # print("ACTOR =")
-        # print(self.selected_actor)
-        self.selected_actor.GetProperty().SetColor(0.5, 0.5, 0.5) #(R,G,B)
+        self.selected_actor.GetProperty().SetColor(0.5, 0.5, 0.5)  # (R, G, B)
         self.selected_actor.GetProperty().SetPointSize(10)
 
-        self.processed_picked()
+        self.color_picked()
 
-    def processed_picked(self):
+    def save_output(self):
+        """CREATES A NEW NUMPY ARRAY of the cm FILE WITH SELECTED NODES REMOVED"""
+        # np.column_stack((self.selected_cm_ids, self.selected_xyz))
+
+    def color_picked(self):
         self.renderer.AddActor(self.selected_actor)
         self.renderWindow.Render()
 
-        self.ids = vtk.vtkIdFilter()
-        self.ids.SetInputData(self.selected)
-        print(self.ids)
+        # self.selected_actor.GetProperty().Get
 
-        self.cell_ids = vtk_to_numpy(self.selected.GetArray('Ids'))
+        '# % CREATE ID FOR EACH SELECTED POINT'
+        # self.ids = vtk.vtkIdFilter()
+        # self.ids.SetInputData(self.selected)
+        # self.ids.SetIdsArrayName("Ids")  # % SET Id ARRAY NAME AS 'Ids'
+        # print("self.ids =")
+        # print(self.ids)
+        # print("")
+        #
+        # self.cell_ids = self.ids.GetCellIds()
+        # self.cell_ids = vtk_to_numpy(self.cells.GetArray('Ids'))
+
 
         # print(self.cell_ids)
+        # print("")
+        #
+        # self.selected_frustrum = vtk.vtkExtractSelectedFrustum()
+        # self.selected_frustrum.SetFrustum(self.frustum)
+        # self.selected_frustrum.PreserveTopologyOff()
+        # self.selected_frustrum.SetInputConnection(self.ids.GetOutputPort())  # was grid?
+        # self.selected_frustrum.Update()
+        # self.ugrid = self.selected_frustrum.GetOutput()
+        # self.cells = self.ugrid.GetCellData()
+        #
+        # print("self.cells =")
+        # print(self.cells)
+        # print("")
+
+
+
+        # print("self.cell_ids =")
+        # print(self.cell_ids)
+        # print("")
+
+        # sys.Gmg.tdv.pointcloud.cm_poly_data.GetPoints().GetPoint(id)
+
         # self.point_data
         # self.ids = vtk.vtkIdTypeArray.SafeDownCast(self.selected.GetPointData().GetArray("OriginalIds"))
         # print(self.ids)
