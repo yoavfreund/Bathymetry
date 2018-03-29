@@ -26,6 +26,10 @@ gmt-pyhton
 ***
 
 ***
+
+***
+
+***
 Icons where designed using the Free icon Maker.
 https://freeiconmaker.com/
 ***
@@ -54,7 +58,8 @@ from numpy import size
 import vtk
 from vtk.wx.wxVTKRenderWindowInteractor import wxVTKRenderWindowInteractor
 from vtk.util.numpy_support import vtk_to_numpy
-
+import glob
+import os
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -90,8 +95,12 @@ class PyCMeditor(wx.Frame):
         images.Add(bottom)
 
         '# %CREATE PANEL TO FILL WITH CONTROLS'
-        self.leftPanel = wx.Panel(self, wx.ID_ANY, size=(100, 1000), style=wx.SP_NOBORDER | wx.EXPAND)
+        self.leftPanel = wx.SplitterWindow(self, wx.ID_ANY, size=(100, 1000), style=wx.SP_NOBORDER | wx.EXPAND)
+        self.leftPanel.SetMinimumPaneSize(1)
         self.leftPanel.SetBackgroundColour('white')
+        self.leftPanel_top = wx.Panel(self, -1, size=(100, 400), style=wx.ALIGN_RIGHT)
+        self.leftPanel_bottom = wx.Panel(self, -1, size=(100, 600), style=wx.ALIGN_RIGHT)
+        self.leftPanel.SplitHorizontally(self.leftPanel_top, self.leftPanel_bottom, 100)
 
         '# %CREATE PANEL TO FILL WITH COORDINATE INFORMATION'
         self.rightPaneltop = wx.Panel(self, -1, size=(1800, 50), style=wx.ALIGN_RIGHT)
@@ -318,7 +327,7 @@ class PyCMeditor(wx.Frame):
         self.draw_main_frame()
 
         '#% DRAW BUTTON WINDOW'
-        self.draw_button_frame()
+        self.draw_button_and_list_frame()
 
         '#%CONNECT MPL FUNCTIONS'
         # self.connect_mpl_events()
@@ -370,42 +379,57 @@ class PyCMeditor(wx.Frame):
         '#%DRAW MAIN'
         self.draw()
 
-    def draw_button_frame(self):
+    def draw_button_and_list_frame(self):
         """#% CREATE LEFT HAND BUTTON MENU"""
 
         '# %BUTTON ONE'
-        self.button_one = wx.Button(self.leftPanel, -1, "B ONE")
+        self.button_one = wx.Button(self.leftPanel_top, -1, "B ONE")
 
         '# %BUTTON TWO'
-        self.button_two = wx.Button(self.leftPanel, -1, "B TWO")
+        self.button_two = wx.Button(self.leftPanel_top, -1, "B TWO")
 
         '# %BUTTON THREE'
-        self.button_three = wx.Button(self.leftPanel, -1, "3D Viewer")
+        self.button_three = wx.Button(self.leftPanel_top, -1, "3D Viewer")
+
+        self.file_list_ctrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+        self.file_list_ctrl.InsertColumn(0, 'File')
 
     def size_handler(self):
         """# %CREATE AND FIT BOX SIZERS (GUI LAYOUT)"""
 
-        ' #% ADD CURRENT COORDINATE BOXES'
+        '# %ADD CURRENT COORDINATE BOXES'
         self.coordinate_box_sizer = wx.FlexGridSizer(cols=6, hgap=7, vgap=1)
         self.coordinate_box_sizer.AddMany([self.longitude_text, self.longitude, self.latitude_text, self.latitude,
                                            self.T_text, self.T])
 
-        ' #% ADD LIVE COORDINATE DATA BOX'
-        self.box_right_top = wx.BoxSizer(wx.HORIZONTAL)
-        self.box_right_top.Add(self.coordinate_box_sizer, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
+        '# %ADD LIVE COORDINATE DATA BOX'
+        self.box_right_top_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.box_right_top_sizer.Add(self.coordinate_box_sizer, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
 
-        ' #% ADD MAIN COORDINATE MAP BOX'
-        self.box_right_bottom = wx.BoxSizer(wx.HORIZONTAL)
-        self.box_right_bottom.Add(self.canvas, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
+        '# %ADD MAIN COORDINATE MAP BOX'
+        self.box_right_bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
+        self.box_right_bottom_sizer.Add(self.canvas, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
 
-        '#% CREATE LAYER TREE BOX'
-        self.left_box_sizer = wx.FlexGridSizer(cols=1, rows=3, hgap=8, vgap=8)
-        self.left_box_sizer.AddMany([self.button_one, self.button_two, self.button_three])
+        '# %CREATE LAYER BUTTON BOX'
+        self.left_box_top_sizer = wx.FlexGridSizer(cols=1, rows=3, hgap=8, vgap=8)
+        self.left_box_top_sizer.AddMany([self.button_one, self.button_two, self.button_three])
 
-        '#PLACE BOX SIZERS IN CORRECT PANELS'
-        self.leftPanel.SetSizerAndFit(self.left_box_sizer)
-        self.rightPaneltop.SetSizerAndFit(self.box_right_top)
-        self.rightPanelbottom.SetSizerAndFit(self.box_right_bottom)
+        '# %CREATE FILE LIST BOX'
+        self.left_box_bottom_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.left_box_bottom_sizer.Add(self.file_list_ctrl, 1, wx.ALL | wx.EXPAND, 5)
+
+        '# %CREATE LEFT SPILTTER PANEL SIZE (POPULATED WITH BUTTON BOX AND FILE LIST BOX'
+        self.splitter_left_panel_sizer = wx.BoxSizer(wx.VERTICAL)
+        self.splitter_left_panel_sizer.Add(self.leftPanel, 1, wx.EXPAND)
+
+
+
+        '# %PLACE BOX SIZERS IN CORRECT PANELS'
+        self.leftPanel_top.SetSizerAndFit(self.left_box_top_sizer)
+        self.leftPanel_bottom.SetSizerAndFit(self.left_box_bottom_sizer)
+        self.leftPanel.SetSizerAndFit(self.splitter_left_panel_sizer)
+        self.rightPaneltop.SetSizerAndFit(self.box_right_top_sizer)
+        self.rightPanelbottom.SetSizerAndFit(self.box_right_bottom_sizer)
         self.rightPaneltop.SetSize(self.GetSize())
         self.rightPanelbottom.SetSize(self.GetSize())
 
@@ -522,6 +546,19 @@ class PyCMeditor(wx.Frame):
 
         '# %UPDATE MPL CANVAS'
         self.draw()
+
+    def open_cm_directory(self, event):
+        """
+        Update the listctrl with the file names in the passed in folder
+        """
+        dlg = wx.DirDialog(self, "Choose a directory:")
+        if dlg.ShowModal() == wx.ID_OK:
+            folder_path = dlg.GetPath()
+            self.updateDisplay(folder_path)
+        dlg.Destroy()
+        paths = glob.glob(folder_path + "/*.cm")
+        for index, path in enumerate(paths):
+            self.list_ctrl.InsertStringItem(index, os.path.basename(path))
 
     def open_predicted_cm_file(self, event):
         """# %LOAD & PLOT XY DATA E.G. EQ HYPOCENTERS"""
@@ -711,7 +748,7 @@ class ThreeDimViewer(wx.Frame):
 
         '# % ADD FLAG BUTTON'
         self.flag_button = wx.Button(self.tdv_left_panel, -1, "Set Flag", size=(150, 20))
-        # self.button.Bind(wx.EVT_BUTTON, self.set_flag)
+        self.flag_button.Bind(wx.EVT_BUTTON, self.set_flag)
 
         '# % ADD DELAUNAY BUTTON'
         self.delaunay_button = wx.Button(self.tdv_left_panel, -1, "Grid", size=(150, 20))
@@ -725,11 +762,15 @@ class ThreeDimViewer(wx.Frame):
         self.delete_selected_button = wx.Button(self.tdv_left_panel, -1, "Delete", size=(150, 20))
         self.delete_selected_button.Bind(wx.EVT_BUTTON, self.delete_selected)
 
+        '# % ADD SAVE CM BUTTON'
+        self.save_cm_button = wx.Button(self.tdv_left_panel, -1, "Save .cm", size=(150, 20))
+        self.save_cm_button.Bind(wx.EVT_BUTTON, self.save_cm)
 
         ' #% ADD CURRENT COORDINATE BOXES'
-        self.left_box = wx.FlexGridSizer(cols=1, rows=8, hgap=5, vgap=5)
+        self.left_box = wx.FlexGridSizer(cols=1, rows=9, hgap=5, vgap=5)
         self.left_box.AddMany([self.picker_button, self.size_text, self.size_slider, self.flag_button,
-                               self.delaunay_button, self.predicted_delaunay_button, self.delete_selected_button])
+                               self.delaunay_button, self.predicted_delaunay_button, self.delete_selected_button,
+                               self.save_cm_button])
 
         '# % RENDER THE XYZ DATA IN 3D'
         self.cm = cm
@@ -995,6 +1036,7 @@ class ThreeDimViewer(wx.Frame):
             self.new_cm = np.delete(self.cm, self.selected_cm_line_number, 0)
 
             '# % REPLACE CURRENT RENDER WITH NEW DATA'
+            self.renderer.RemoveActor(self.rubber_style.selected_actor)
             self.re_render()
 
             '# % UPDATE RENDER'
@@ -1004,6 +1046,57 @@ class ThreeDimViewer(wx.Frame):
             print("attr error")
             pass
 
+    def set_flag(self, event):
+        """SETS FLAG FOR SELECTED NODES"""
+        print("SETTING FLAG")
+        try:
+            '# % DELETE SELECTED VALUES'
+            self.selected_cm_line_number = vtk_to_numpy(
+                                    self.rubber_style.selected.GetPointData().GetArray("cm_line_number")).astype(int)
+
+            '# % CLONE CURRENT cm file'
+            self.new_cm = np.copy(self.cm)
+
+            '# %SET FLAG AS 1 FOR ALL SELECTED NODES'
+            flag_column_index = np.shape(self.cm)[1]
+            for x in range(len(self.selected_cm_line_number)):
+                index = self.selected_cm_line_number[x]  # % GET INDEX VALUE
+                self.new_cm[index, 4] = 1  # % INSERT FLAG IN COL 1
+
+            '# % REMOVE SELECTED ACTOR'
+            self.renderer.RemoveActor(self.rubber_style.selected_actor)
+
+            '# % DRAW FLAGGED ACTOR'
+            self.rubber_style.flagged_mapper = vtk.vtkDataSetMapper()
+            self.rubber_style.flagged_actor = vtk.vtkActor()
+            self.rubber_style.flagged_actor.SetMapper(self.rubber_style.flagged_mapper)
+            self.rubber_style.flagged_mapper.SetInputData(self.rubber_style.selected)
+            self.rubber_style.flagged_actor.GetMapper().ScalarVisibilityOff()
+            self.rubber_style.flagged_actor.GetProperty().SetColor(0, 0, 0)  # (R, G, B)
+            self.rubber_style.flagged_actor.GetProperty().SetPointSize(10)
+            self.renderer.AddActor(self.rubber_style.flagged_actor)
+
+            '# % REPLACE CURRENT RENDER WITH NEW DATA'
+            self.re_render()
+
+            '# % UPDATE LIVE RENDER'
+            self.renderWindow.Render()
+
+        except AttributeError:
+            print("attr error")
+            pass
+
+    def save_cm(self, event):
+        """# %SET OUTPUT FILE NAME AND DIR"""
+        save_file_dialog = wx.FileDialog(self, "Save edited .cm file", "", "", ".cm file (*.cm)|*.cm",
+                                         wx.FD_SAVE | wx.FD_OVERWRITE_PROMPT)
+        if save_file_dialog.ShowModal() == wx.ID_CANCEL:
+            return  # %THE USER CHANGED THEIR MIND
+
+        '# %SAVE TO DISC'
+        outputfile = save_file_dialog.GetPath()
+        np.savetxt(outputfile, self.cm, delimiter=" ")
+
     def re_render(self):
         """
         # % RE RENDER 3D POINTS AFTER REMOVING SELECTION
@@ -1011,7 +1104,6 @@ class ThreeDimViewer(wx.Frame):
         print("re rendering")
         self.renderer.RemoveActor(self.pointcloud.vtkActor)
         del self.pointcloud.vtkActor
-        self.renderer.RemoveActor(self.rubber_style.selected_actor)
 
         self.cm = self.new_cm
 
@@ -1194,8 +1286,8 @@ class RubberBand(vtk.vtkInteractorStyleRubberBandPick):
 
         '# % COLOR SELECTED POINTS RED'
         self.selected_mapper.SetInputData(self.selected)
-        self.selected_actor.GetProperty().SetColor(0.5, 0.5, 0.5)  # (R, G, B)
         self.selected_actor.GetProperty().SetPointSize(10)
+        self.selected_actor.GetProperty().SetColor(0, 0, 0)  # (R, G, B)
 
         self.color_picked()
 
@@ -1324,4 +1416,3 @@ if __name__ == "__main__":
     # def update(self):
     #     self.pointcloud.vtkActor.Modified()
     #     self.renderWindow.Render()
-
