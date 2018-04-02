@@ -42,7 +42,11 @@ Documentation created using Sphinx.
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 """
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 # IMPORT MODULES~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 import sys
 import matplotlib as mpl
 mpl.use('WXAgg')
@@ -60,6 +64,7 @@ from vtk.wx.wxVTKRenderWindowInteractor import wxVTKRenderWindowInteractor
 from vtk.util.numpy_support import vtk_to_numpy
 import glob
 import os
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -95,11 +100,13 @@ class PyCMeditor(wx.Frame):
         images.Add(bottom)
 
         '# %CREATE PANEL TO FILL WITH CONTROLS'
-        self.leftPanel = wx.SplitterWindow(self, wx.ID_ANY, size=(100, 1000), style=wx.SP_NOBORDER | wx.EXPAND)
+        self.leftPanel = wx.SplitterWindow(self, wx.ID_ANY, size=(115, 1000), style=wx.SP_NOBORDER | wx.EXPAND)
         self.leftPanel.SetMinimumPaneSize(1)
         self.leftPanel.SetBackgroundColour('white')
-        self.leftPanel_top = wx.Panel(self, -1, size=(100, 400), style=wx.ALIGN_RIGHT)
-        self.leftPanel_bottom = wx.Panel(self, -1, size=(100, 600), style=wx.ALIGN_RIGHT)
+
+        self.leftPanel_top = wx.Panel(self.leftPanel, -1, size=(115, 100), style=wx.ALIGN_RIGHT)
+        self.leftPanel_bottom = wx.Panel(self.leftPanel, -1, size=(115, 900), style=wx.ALIGN_RIGHT)
+
         self.leftPanel.SplitHorizontally(self.leftPanel_top, self.leftPanel_bottom, 100)
 
         '# %CREATE PANEL TO FILL WITH COORDINATE INFORMATION'
@@ -119,7 +126,6 @@ class PyCMeditor(wx.Frame):
         py_local = {'__app__': 'gmg Application'}
         sys.Gmg = self
         self.win = py.shell.Shell(self.ConsolePanel, -1, size=(2200, 1100), locals=py_local, introText=intro)
-
 
         '# %ADD THE PANES TO THE AUI MANAGER'
         self.mgr.AddPane(self.leftPanel, aui.AuiPaneInfo().Name('left').Left().Caption("Controls"))
@@ -383,16 +389,20 @@ class PyCMeditor(wx.Frame):
         """#% CREATE LEFT HAND BUTTON MENU"""
 
         '# %BUTTON ONE'
-        self.button_one = wx.Button(self.leftPanel_top, -1, "B ONE")
+        self.button_one = wx.Button(self.leftPanel_top, -1, "Load cm", style=wx.ALIGN_CENTER)
 
         '# %BUTTON TWO'
-        self.button_two = wx.Button(self.leftPanel_top, -1, "B TWO")
+        self.button_two = wx.Button(self.leftPanel_top, -1, "Load Xcm", style=wx.ALIGN_CENTER)
 
         '# %BUTTON THREE'
-        self.button_three = wx.Button(self.leftPanel_top, -1, "3D Viewer")
+        self.button_three = wx.Button(self.leftPanel_top, -1, "Load Predicted", style=wx.ALIGN_CENTER)
 
-        self.file_list_ctrl = wx.ListCtrl(self, -1, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
-        self.file_list_ctrl.InsertColumn(0, 'File')
+        '# %BUTTON THREE'
+        self.button_four = wx.Button(self.leftPanel_top, -1, "3D Viewer", style=wx.ALIGN_CENTER)
+
+        self.file_list_ctrl = wx.ListCtrl(self.leftPanel_bottom, -1, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+        self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.list_item_selected, self.file_list_ctrl)
+        self.file_list_ctrl.InsertColumn(0, 'cm Files')
 
     def size_handler(self):
         """# %CREATE AND FIT BOX SIZERS (GUI LAYOUT)"""
@@ -411,23 +421,21 @@ class PyCMeditor(wx.Frame):
         self.box_right_bottom_sizer.Add(self.canvas, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
 
         '# %CREATE LAYER BUTTON BOX'
-        self.left_box_top_sizer = wx.FlexGridSizer(cols=1, rows=3, hgap=8, vgap=8)
-        self.left_box_top_sizer.AddMany([self.button_one, self.button_two, self.button_three])
+        self.left_box_top_sizer = wx.FlexGridSizer(cols=1, rows=4, hgap=8, vgap=8)
+        self.left_box_top_sizer.AddMany([self.button_one, self.button_two, self.button_three, self.button_four])
 
         '# %CREATE FILE LIST BOX'
         self.left_box_bottom_sizer = wx.BoxSizer(wx.VERTICAL)
         self.left_box_bottom_sizer.Add(self.file_list_ctrl, 1, wx.ALL | wx.EXPAND, 5)
 
-        '# %CREATE LEFT SPILTTER PANEL SIZE (POPULATED WITH BUTTON BOX AND FILE LIST BOX'
+        '# %CREATE LEFT SPLITTER PANEL SIZE (POPULATED WITH BUTTON BOX AND FILE LIST BOX)'
         self.splitter_left_panel_sizer = wx.BoxSizer(wx.VERTICAL)
         self.splitter_left_panel_sizer.Add(self.leftPanel, 1, wx.EXPAND)
-
-
 
         '# %PLACE BOX SIZERS IN CORRECT PANELS'
         self.leftPanel_top.SetSizerAndFit(self.left_box_top_sizer)
         self.leftPanel_bottom.SetSizerAndFit(self.left_box_bottom_sizer)
-        self.leftPanel.SetSizerAndFit(self.splitter_left_panel_sizer)
+        self.leftPanel.SetSizer(self.splitter_left_panel_sizer)
         self.rightPaneltop.SetSizerAndFit(self.box_right_top_sizer)
         self.rightPanelbottom.SetSizerAndFit(self.box_right_bottom_sizer)
         self.rightPaneltop.SetSize(self.GetSize())
@@ -442,8 +450,9 @@ class PyCMeditor(wx.Frame):
         # self.fig.canvas.mpl_connect('pick_event', self.on_pick)
 
         self.button_one.Bind(wx.EVT_BUTTON, self.open_cm_file)
-        self.button_two.Bind(wx.EVT_BUTTON, self.open_predicted_cm_file)
-        self.button_three.Bind(wx.EVT_BUTTON, self.plot_threed)
+        self.button_two.Bind(wx.EVT_BUTTON, self.open_cm_directory)
+        self.button_three.Bind(wx.EVT_BUTTON, self.open_predicted_cm_file)
+        self.button_four.Bind(wx.EVT_BUTTON, self.plot_threed)
 
     # FIGURE DISPLAY FUNCTIONS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -507,29 +516,41 @@ class PyCMeditor(wx.Frame):
     def set_nav_aspect(self):
         self.nav_canvas.set_aspect(self.aspect)
 
-    # GUI INTERACTION~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    # GUI INTERACTION~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def open_cm_file(self, event):
-        """# %LOAD & PLOT XY DATA E.G. EQ HYPOCENTERS"""
-
+        """# %GET CM FILE TO LOAD"""
         open_file_dialog = wx.FileDialog(self, "Open XY file", "", "", "All files (*.cm)|*.*", wx.FD_OPEN |
                                          wx.FD_FILE_MUST_EXIST)
         if open_file_dialog.ShowModal() == wx.ID_CANCEL:
             return  # %THE USER CHANGED THEIR MIND
         else:
-            cm_file = open_file_dialog.GetPath()
+            '# % IF A .cm FILE IS ALREADY LOADED THEN REMOVE IT BEFORE LOADING THE CURRENT FILE'
+            try:
+                self.cm_plot
+            except AttributeError:
+                pass
+            else:
+                self.delete_cm_file()
+
+            '# % GET THE FILE NAME FROM FileDialog WINDOW'
+            self.cm_file = open_file_dialog.GetPath()
             self.cm_filename = open_file_dialog.Filename  # % ASSIGN FILE
 
+            '# % NOW LOAD THE DATA'
+            self.load_cm_file()
+
+    def load_cm_file(self):
+        """LOAD .cm FILE DATA INTO PROGRAM"""
         try:
             self.colorbar = plt.cm.get_cmap('RdYlBu')
-            self.cm = np.genfromtxt(cm_file, delimiter=' ', dtype=float, filling_values=-9999)  # % LOAD FILE
+            self.cm = np.genfromtxt(self.cm_file, delimiter=' ', dtype=float, filling_values=-9999)  # % LOAD FILE
             self.cm_plot = self.nav_canvas.scatter(self.cm[:, 1], self.cm[:, 2], marker='o', s=1, c=self.cm[:, 3],
                                                    cmap=self.colorbar, label=self.cm[:, 3])
 
-            #  % SET WINDOW DIMENSIONS TO FIT CURRENT SURVEY
+            '# % SET WINDOW DIMENSIONS TO FIT CURRENT SURVEY'
             self.nav_canvas.set_xlim(self.cm[:, 1].min()-0.2, self.cm[:, 1].max()+0.2)
             self.nav_canvas.set_ylim(self.cm[:, 2].min()-0.2, self.cm[:, 2].max()+0.2)
-
         except IndexError:
             error_message = "ERROR IN LOADING PROCESS - FILE MUST BE ASCII SPACE DELIMITED"
             wx.MessageDialog(self, -1, error_message, "Load Error")
@@ -544,7 +565,37 @@ class PyCMeditor(wx.Frame):
         self.xyz_point_flags = np.zeros(shape=(1, len(self.xyz)))
         self.xyz_cm_line_number = np.linspace(0, len(self.xyz), (len(self.xyz)+1))
 
+        '# % If THREE DIMENSIONAL VIEWER IS OPEN, THEN CLOSE IT AND REOPEN WITH NEW .cm FILE'
+        try:
+            self.tdv
+        except AttributeError:
+            pass
+        else:
+            self.reload_threed()
+
+
+
         '# %UPDATE MPL CANVAS'
+        self.draw()
+
+    def delete_cm_file(self):
+        """" # %DELETE CURRENT .cm FILE SO THE NEWLY SELECTED .cm FILE CAN BE LOADED INTO THE VIEWERS"""
+
+        '# % REMOVE .cm DATA from MAP FRAME'
+        del self.cm_file
+        del self.cm
+        self.cm_plot.set_visible(False)
+        self.cm_plot.remove()
+        del self.cm_plot
+
+        '# % REMOVE .cm DATA from MAP FRAME'
+        del self.xyz
+        del self.xyz_cm_id
+        del self.xyz_width
+        del self.xyz_meta_data
+        del self.xyz_point_flags
+        del self.xyz_cm_line_number
+
         self.draw()
 
     def open_cm_directory(self, event):
@@ -554,11 +605,30 @@ class PyCMeditor(wx.Frame):
         dlg = wx.DirDialog(self, "Choose a directory:")
         if dlg.ShowModal() == wx.ID_OK:
             folder_path = dlg.GetPath()
-            self.updateDisplay(folder_path)
-        dlg.Destroy()
-        paths = glob.glob(folder_path + "/*.cm")
+        self.active_dir = folder_path  # % SET .cm DIR
+        paths = glob.glob(folder_path + "/*.cm")  # % GET ALL .cm file names
         for index, path in enumerate(paths):
-            self.list_ctrl.InsertStringItem(index, os.path.basename(path))
+            self.file_list_ctrl.InsertItem(index, os.path.basename(path))
+        dlg.Destroy()
+
+    def list_item_selected(self, event):
+        """ACTIVATED WHEN A FILE FROM THE LIST CONTROL IS SELECTED"""
+
+        file = event.GetText()
+        self.selected_file = str(self.active_dir)+"/"+str(file)
+        print(self.selected_file)
+
+        '# % IF A .cm FILE IS ALREADY LOADED THEN REMOVE IT BEFORE LOADING THE CURRENT FILE'
+        try:
+            self.cm_plot
+        except AttributeError:
+            pass
+        else:
+            self.delete_cm_file()
+
+        '# %LOAD NEW .cm FILE DATA INTO VIEWERS'
+        self.cm_file = self.selected_file
+        self.load_cm_file()
 
     def open_predicted_cm_file(self, event):
         """# %LOAD & PLOT XY DATA E.G. EQ HYPOCENTERS"""
@@ -618,9 +688,7 @@ class PyCMeditor(wx.Frame):
         # self.statusbar.SetStatusText("Use W,S,F,R keys and mouse to interact with the model ")
 
     def plot_threed(self, event):
-        """
-        PLOT 3D VIEW OF DATA
-        """
+        """PLOT 3D VIEW OF DATA"""
 
         '# %ATTEMPT TO OPEN PREDICTED XYZ BATHYMETRY DATA'
         try:
@@ -634,7 +702,11 @@ class PyCMeditor(wx.Frame):
                                   self.xyz_point_flags, self.xyz_cm_line_number, self.predicted_xyz)
         self.tdv.Show(True)
 
-        sys.t = self.tdv
+    def reload_threed(self):
+        """REMOVE 3D VIEWER AND REPLACE WITH NEWLY LOADED DATA"""
+        self.tdv.Show(False)
+        del self.tdv
+        self.plot_threed(self)
 
     # DOCUMENTATION~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -694,8 +766,6 @@ class PyCMeditor(wx.Frame):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# 3D VIEWER CLASSES
-# TODO vtk.vtkRadiusOutlierRemoval
 
 class ThreeDimViewer(wx.Frame):
     def __init__(self, parent, id, title, cm, xyz_data_file, xyz_cm_id, xyz_meta_data, xyz_point_flags,
@@ -1343,6 +1413,9 @@ class RubberBand(vtk.vtkInteractorStyleRubberBandPick):
         # for i in range(self.ids.GetTypedTuple()):
         #     print("Id %s : %s" % (i, self.ids.GetValue(i)))
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 '''# %START SOFTWARE'''
 if __name__ == "__main__":
     app = wx.App(False)
@@ -1355,7 +1428,7 @@ if __name__ == "__main__":
 
 
 
-
+## to-do vtk.vtkRadiusOutlierRemoval
 
 
 # class MouseInteractorHighLightActor(vtk.vtkInteractorStyleTrackballCamera):
