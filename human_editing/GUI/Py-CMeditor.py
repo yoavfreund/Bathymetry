@@ -91,13 +91,13 @@ class PyCMeditor(wx.Frame):
         '# %START AUI WINDOW MANAGER'
         self.mgr = aui.AuiManager()
 
-        '# %TELL AUI WHICH FRAME TO USE'
+        '# %TELL AUI WHICH FRAME TO USE'ss
         self.mgr.SetManagedWindow(self)
 
         '# %SET SPLITTER WINDOW TOGGLE IMAGES'
         images = wx.ImageList(16, 16)
         top = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_MENU, (16, 16))
-        bottom = wx.ArtProvider.GetBitmap(wx.ART_GO_DOWN, wx.ART_MENU, (16, 16))
+        botstom = wx.ArtProvider.GetBitmap(wx.ART_GO_DOWN, wx.ART_MENU, (16, 16))
         images.Add(top)
         images.Add(bottom)
 
@@ -373,7 +373,7 @@ class PyCMeditor(wx.Frame):
         self.nav_canvas = plt.subplot2grid((20, 20), (2, 2), rowspan=17, colspan=17)
         self.nav_canvas.set_xlabel("Longitude (dec. Degrees)")
         self.nav_canvas.set_ylabel("Latitude (dec. Degrees)")
-        self.nav_canvas.set_xlim(-180., 180.)  # % SET X LIMITS
+       s self.nav_canvas.set_xlim(-180., 180.)  # % SET X LIMITS
         self.nav_canvas.set_ylim(-90, 90.)  # % SET Y LIMITS
         self.nav_canvas.grid()
         self.fig.subplots_adjust(top=1.05, left=-0.045, right=1.02, bottom=0.02,
@@ -383,7 +383,7 @@ class PyCMeditor(wx.Frame):
 
         '#% UPDATE INFO BAR'
         # self.display_info()
-
+s
         '#%DRAW MAIN'
         self.draw()
 
