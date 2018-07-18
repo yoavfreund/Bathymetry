@@ -84,7 +84,7 @@ Indexes:<br>
     conda install -c clinicalgraphics vtk
     conda install python.app=1.2
     conda install wxpython=4.0.1
-    conda isntall folium
+    conda install folium
 
 ## Notes
 Dev branch is called: human_editing
