@@ -76,9 +76,12 @@ Indexes:<br>
 
 
 ## Human editor software dev enivroment install
-conda create --name pycmeditor
-source activate pycmeditor
-conda install -c clinicalgraphics vtk
-conda install python.app=1.2
+  conda create --name pycmeditor
+
+  source activate pycmeditor
+
+  conda install -c clinicalgraphics vtk
+
+  conda install python.app=1.2
 
 Once software is competed a pip package will be created for sharing.
