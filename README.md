@@ -75,9 +75,9 @@ Indexes:<br>
 -    "pings_longitude_btree_index" btree (longitude)
 
 
-## Human editing software 
+# Human editing software 
 
-# dev enivroment install
+## dev enivroment install
   
     conda create --name pycmeditor
     source activate pycmeditor
@@ -86,6 +86,6 @@ Indexes:<br>
     conda install wxpython=4.0.1
     conda isntall folium
 
-# Notes
+## Notes
 dev branch is called: human_editing
 Once software is competed a pip package will be created for sharing.
