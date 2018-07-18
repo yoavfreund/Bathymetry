@@ -78,7 +78,12 @@ Indexes:<br>
 # Human editing software 
 
 ## dev enivroment install
-  
+First install the Anaconda Python distribution:
+    
+    https://www.anaconda.com/download/#all
+ 
+ Then in the terminal:
+ 
     conda create --name pycmeditor
     source activate pycmeditor
     conda install -c clinicalgraphics vtk
