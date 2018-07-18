@@ -87,5 +87,6 @@ Indexes:<br>
     conda isntall folium
 
 ## Notes
-dev branch is called: human_editing
+Dev branch is called: human_editing
+
 Once software is competed a pip package will be created for sharing.
