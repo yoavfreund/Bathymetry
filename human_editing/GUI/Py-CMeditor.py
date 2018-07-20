@@ -43,11 +43,8 @@ Documentation created using Sphinx.
 """
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# IMPORT MODULES ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# IMPORT MODULES~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-# to-do vtk.vtkRadiusOutlierRemoval
 import sys
 import matplotlib as mpl
 mpl.use('WXAgg')
@@ -67,9 +64,13 @@ import glob
 import os
 import webbrowser
 import folium
-from folium import features
-from wx import html
+from folium.plugins import MeasureControl
+from folium.plugins import MousePosition
+from folium import LayerControl
 from wx import html2
+import subprocess
+# to-do vtk.vtkRadiusOutlierRemoval
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -82,13 +83,14 @@ class PyCMeditor(wx.Frame):
     Objects are passed between the master class and Dialog boxes.
     """
 
-    '# %DIR CONTAINING PROGRAM ICONS'
-    gui_icons_dir = os.path.dirname(os.path.realpath(__file__)) + '/icons/'
-
     # INITALIZE GUI~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
     def __init__(self, *args, **kwds):
         wx.Frame.__init__(self, None, wx.ID_ANY, 'Py-CMeditor', size=(1800, 1050))
+
+        '# %DIR CONTAINING PROGRAM ICONS'
+        self.cwd = os.path.dirname(os.path.realpath(__file__))
+        self.gui_icons_dir = self.cwd + '/icons/'
 
         '# %START AUI WINDOW MANAGER'
         self.mgr = aui.AuiManager()
@@ -173,6 +175,10 @@ class PyCMeditor(wx.Frame):
 
         '# %MAXIMIZE FRAME'
         self.Maximize(True)
+
+        '# % INITIALISE'
+        self.predicted_xyz = None
+        self.difference_xyz = None
 
     def create_menu(self):
         """# %CREATES GUI MENUBAR"""
@@ -312,17 +318,34 @@ class PyCMeditor(wx.Frame):
         """# %INITALISE OBSERVED DATA AND LAYERS"""
 
         # self.tile = 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{z}/{y}/{x}.png'
-
+        # tiles = 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{z}/{y}/{x}.png',
         self.folium_map = folium.Map(location=[0.0, -180.0],
                                 zoom_start=2,
-                                tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{z}/{y}/{x}.png',
                                 attr='My Data Attribution')
 
-        # self.folium_map.TitleLayer(tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{z}/{y}/{x}.png')
+        self.folium_map.add_child(MeasureControl())
+        self.folium_map.add_child(MousePosition())
+        # self.folium_map.add_child(LayerControl())
 
+        merc_file = ('srtm_1.png', 'srtm_2.png', 'srtm_3.png', 'srtm_4.png', 'srtm_5.png', 'srtm_6.png', 'srtm_7.png',
+                     'srtm_8.png')
+        name = (1, 2, 3, 4, 5, 6, 7, 8)
+
+        lat_min = (-80, 0, -80, 0, -80, 0, -80, 0)
+        lat_max = (0, 80, 0, 80, 0, 80, 0, 80)
+
+        long_min = (90, 90, 0, 0, -90, -90, -180, -180)
+        long_max = (180, 180, 90, 90, 0, 0, -90, -90)
+
+        for i in range(0, 8):
+            img = folium.raster_layers.ImageOverlay(
+                name=name[i], image=merc_file[i], bounds=[[lat_min[i], long_min[i]], [lat_max[i], long_max[i]]],
+                opacity=0.5, interactive=True, cross_origin=True, zorder=-1)
+            img.add_to(self.folium_map)
 
         self.folium_map.save("my_map.html")
 
+        '#% OPEN FOLIUM HTML MAP IN MAIN WINDOW'
         self.browser = wx.html2.WebView.New(self.rightPanelbottom, -1)
         self.browser.LoadURL('/Users/brook/Bathymetry/human_editing/GUI/my_map.html')
 
@@ -414,8 +437,11 @@ class PyCMeditor(wx.Frame):
         '# %BUTTON THREE'
         self.button_three = wx.Button(self.leftPanel_top, -1, "Load Predicted", style=wx.ALIGN_CENTER)
 
-        '# %BUTTON THREE'
+        '# %BUTTON FOUR'
         self.button_four = wx.Button(self.leftPanel_top, -1, "3D Viewer", style=wx.ALIGN_CENTER)
+
+        '# %BUTTON FIVE'
+        self.button_five = wx.Button(self.leftPanel_top, -1, "Get Predicted", style=wx.ALIGN_CENTER)
 
         self.file_list_ctrl = wx.ListCtrl(self.leftPanel_bottom, -1, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
         self.Bind(wx.EVT_LIST_ITEM_ACTIVATED, self.list_item_selected, self.file_list_ctrl)
@@ -439,8 +465,9 @@ class PyCMeditor(wx.Frame):
         # self.box_right_bottom_sizer.Add(self.canvas, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
 
         '# %CREATE LAYER BUTTON BOX'
-        self.left_box_top_sizer = wx.FlexGridSizer(cols=1, rows=4, hgap=8, vgap=8)
-        self.left_box_top_sizer.AddMany([self.button_one, self.button_two, self.button_three, self.button_four])
+        self.left_box_top_sizer = wx.FlexGridSizer(cols=1, rows=5, hgap=8, vgap=8)
+        self.left_box_top_sizer.AddMany([self.button_one, self.button_two, self.button_three, self.button_four,
+                                         self.button_five])
 
         '# %CREATE FILE LIST BOX'
         self.left_box_bottom_sizer = wx.BoxSizer(wx.VERTICAL)
@@ -471,6 +498,7 @@ class PyCMeditor(wx.Frame):
         self.button_two.Bind(wx.EVT_BUTTON, self.open_cm_directory)
         self.button_three.Bind(wx.EVT_BUTTON, self.open_predicted_cm_file)
         self.button_four.Bind(wx.EVT_BUTTON, self.plot_threed)
+        self.button_five.Bind(wx.EVT_BUTTON, self.get_predicted)
 
     # FIGURE DISPLAY FUNCTIONS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -572,55 +600,25 @@ class PyCMeditor(wx.Frame):
     def load_cm_file(self):
         """LOAD .cm FILE DATA INTO PROGRAM"""
         try:
-            self.colorbar = plt.cm.get_cmap('RdYlBu')
             self.cm = np.genfromtxt(self.cm_file, delimiter=' ', dtype=float, filling_values=-9999)  # % LOAD FILE
-            # self.cm_plot = self.nav_canvas.scatter(self.cm[:, 1], self.cm[:, 2], marker='o', s=1, c=self.cm[:, 3],
-            #                                        cmap=self.colorbar, label=self.cm[:, 3])
 
-            # myStyle = {
-            #     "color": "#ff7800",
-            #     "weight": 5,
-            #     "opacity": 0.65
-            # }
-            #
-            # data = {
-            #     'type': 'FeatureCollection',
-            #     'features': [
-            #         {
-            #             'type': 'Feature',
-            #             'geometry': {
-            #                 'type': 'MultiPoint',
-            #                 'coordinates': [[lon, lat] for (lat, lon) in zip(self.cm[:, 2], self.cm[:, 1])],
-            #             },
-            #             'properties': {'prop0': 'value0'}
-            #         },
-            #     ],
-            # }
-            # self.folium_map.add_child(features.GeoJson(data, style=myStyle))
-
+            '# % ADD .cm FILE TO FOLIUM BASEMAP'
             fg = folium.FeatureGroup(name="cm_file")
-
             for lat, lon, elev, name in zip(self.cm[:, 2], self.cm[:, 1], self.cm[:, 3], self.cm[:, 4]):
                 folium.CircleMarker(location=[lat, lon], radius=1, popup=None, fill=True,
                                     color=self.color(elev)).add_to(fg)
-
             self.folium_map.add_child(fg)
-
             self.folium_map.save("my_map.html")
             self.browser.LoadURL('/Users/brook/Bathymetry/human_editing/GUI/my_map.html')
-
-            # '# % SET WINDOW DIMENSIONS TO FIT CURRENT SURVEY'
-            # self.nav_canvas.set_xlim(self.cm[:, 1].min()-0.2, self.cm[:, 1].max()+0.2)
-            # self.nav_canvas.set_ylim(self.cm[:, 2].min()-0.2, self.cm[:, 2].max()+0.2)
-
         except IndexError:
             error_message = "ERROR IN LOADING PROCESS - FILE MUST BE ASCII SPACE DELIMITED"
             wx.MessageDialog(self, -1, error_message, "Load Error")
             raise
 
-        '# %GET DATA AS cm FILE DATA AS NUMPY ARRAYS'
-        self.xyz = self.cm[:, 1:4]
-        self.xyz = np.divide(self.xyz, (1.0, 1.0, 10000.0))  # % DIVIDE TO MAKE Z SCALE ON SAME ORDER OF MAG AS X&Z
+        '# %SET DATA FROM .cm FILE AS NUMPY ARRAYS'
+        self.xyz_input = self.cm[:, 1:4]
+        self.xyz = np.divide(self.xyz_input, (1.0, 1.0, 10000.0))  # % DIVIDE TO MAKE Z SCALE SAME ORDER OF MAG AS X&Z
+        del self.xyz_input
         self.xyz_cm_id = self.cm[:, 0].astype(int)  # % GET CM FILE IDs
         self.xyz_width = self.cm.shape[1]
         self.xyz_meta_data = self.cm[:, 4:self.xyz_width]
@@ -634,9 +632,6 @@ class PyCMeditor(wx.Frame):
             pass
         else:
             self.reload_threed()
-
-        '# %UPDATE MPL CANVAS'
-        # self.draw()
 
     def delete_cm_file(self):
         """" # %DELETE CURRENT .cm FILE SO THE NEWLY SELECTED .cm FILE CAN BE LOADED INTO THE VIEWERS"""
@@ -691,42 +686,33 @@ class PyCMeditor(wx.Frame):
         self.load_cm_file()
 
     def open_predicted_cm_file(self, event):
-        """# %LOAD & PLOT XY DATA E.G. EQ HYPOCENTERS"""
+        pass
 
-        open_file_dialog = wx.FileDialog(self, "Open XY file", "", "", "All files (*.cm)|*.*", wx.FD_OPEN |
-                                         wx.FD_FILE_MUST_EXIST)
-        if open_file_dialog.ShowModal() == wx.ID_CANCEL:
-            return  # %THE USER CHANGED THEIR MIND
-        else:
-            predicted_cm_file = open_file_dialog.GetPath()
-            self.predicted_cm_filename = open_file_dialog.Filename  # % ASSIGN FILE
+    def get_predicted(self, event):
+        msg = "Please wait while we process your request..."
+        self.busyDlg = wx.BusyInfo(msg)
 
         try:
-            self.predicted_cm = np.genfromtxt(predicted_cm_file, delimiter=' ', dtype=float, filling_values=-9999)
-            self.predicted_cm_plot = self.nav_canvas.scatter(self.predicted_cm[:, 1], self.predicted_cm[:, 2],
-                                                             marker='o', s=0.5, c=self.predicted_cm[:, 3],
-                                                             cmap=self.colorbar)
+            '# % SAVE CM AS INPUT XYZ FOR BASH SCRIPT'
+            cm_file = self.cm[:, 1:4]
+            np.savetxt('input.xyz', cm_file, delimiter=" ", fmt="%10.6f %10.6f %10.6f")
 
-            #  % SET WINDOW DIMENSIONS TO FIT CURRENT SURVEY
-            self.nav_canvas.set_xlim(self.cm[:, 1].min()-0.2, self.cm[:, 1].max()+0.2)
-            self.nav_canvas.set_ylim(self.cm[:, 2].min()-0.2, self.cm[:, 2].max()+0.2)
-        except IndexError:
-            error_message = "ERROR IN LOADING PROCESS - FILE MUST BE ASCII SPACE DELIMITED"
-            wx.MessageDialog(self, -1, error_message, "Load Error")
-            raise
+            '# %RUN BASH SCRIPT '
+            subprocess.call(self.cwd+"/"+"get_predicted.sh")
 
-        self.draw()
-        self.aspect = 1
-        self.set_nav_aspect()
-        self.draw()
+            '# %LOAD PREDICTED CM'
+            self.predicted_cm = np.genfromtxt('predicted.xyz', delimiter=' ', dtype=float, filling_values=-9999)
 
-        '# %GET DATA AS cm FILE DATA AS NUMPY ARRAYS'
-        self.predicted_xyz = self.predicted_cm[:, 1:4]
-        self.predicted_xyz = np.divide(self.predicted_xyz, (1.0, 1.0, 10000.0))  # %DIVIDE TO MAKE Z SCALE ON SAME
-        '# %ORDER OF MAG AS X&Z'
-        self.id = self.predicted_xyz[:, 0]  # %GET CM FILE IDs
-        self.predicted_xyz_width = self.predicted_cm.shape[1]
-        self.predicted_xyz_meta_data = self.predicted_cm[:, 4:self.xyz_width]
+            '# %LOAD DIFFERENCE CM'
+            self.diff_xyz = np.genfromtxt('difference.xyz', delimiter=' ', dtype=float, filling_values=-9999)
+            self.difference_xyz =  np.divide(self.diff_xyz, (1.0, 1.0, 10000.0))
+            '# %GET DATA AS NUMPY ARRAYS'
+            self.predicted_xyz = np.divide(self.predicted_cm, (1.0, 1.0, 10000.0))  # %DIVIDE TO MAKE Z SCALE ON SAME
+                                                                                    #  ORDER OF MAG AS X & Z
+
+        except AttributeError:
+            print("ERROR: no .cm file loaded")
+        self.busyDlg = None
 
     def button_three(self, event):
         self.plot_threed()
@@ -734,18 +720,14 @@ class PyCMeditor(wx.Frame):
         # self.statusbar.SetStatusText("Use W,S,F,R keys and mouse to interact with the model ")
 
     def plot_threed(self, event):
-        """PLOT 3D VIEW OF DATA"""
-
-        '# %ATTEMPT TO OPEN PREDICTED XYZ BATHYMETRY DATA'
-        try:
-            self.predicted_xyz = self.predicted_cm[:, 1:4]
-            self.predicted_xyz = np.divide(self.predicted_xyz, (1.0, 1.0, 10000.0))
-        except AttributeError:
-            self.predicted_xyz = None
+        """
+        PLOT 3D VIEW OF DATA
+        """
 
         '# %OPEN A vtk 3D VIEWER WINDOW AND CREATE A RENDER'
-        self.tdv = ThreeDimViewer(self, -1, 'Modify Current Model', self.cm, self.xyz, self.xyz_cm_id, self.xyz_meta_data,
-                                  self.xyz_point_flags, self.xyz_cm_line_number, self.predicted_xyz)
+        self.tdv = ThreeDimViewer(self, -1, 'Modify Current Model', self.cm, self.xyz, self.xyz_cm_id,
+                                  self.xyz_meta_data, self.xyz_point_flags, self.xyz_cm_line_number,
+                                  self.predicted_xyz,  self.difference_xyz)
         self.tdv.Show(True)
 
     def reload_threed(self):
@@ -815,7 +797,7 @@ class PyCMeditor(wx.Frame):
 
 class ThreeDimViewer(wx.Frame):
     def __init__(self, parent, id, title, cm, xyz, xyz_cm_id, xyz_meta_data, xyz_point_flags,
-                                                                    xyz_cm_line_number, predicted_xyz_file):
+                                                                    xyz_cm_line_number, predicted_xyz, difference_xyz):
         wx.Frame.__init__(self, None, wx.ID_ANY, '3D Viewer', size=(1500, 1100))
 
         '# %START AUI WINDOW MANAGER'
@@ -847,7 +829,13 @@ class ThreeDimViewer(wx.Frame):
         self.Interactor = wxVTKRenderWindowInteractor(self.tdv_top_panel, -1)
         self.Interactor.SetRenderWindow(self.renderWindow)
         # self.Interactor.RemoveObservers('KeyPressEvent')
-        self.Interactor.RemoveObservers('CharEvent')
+        # self.Interactor.RemoveObservers('CharEvent')
+
+        self.renderer.SetUseDepthPeeling(1)
+        self.renderer.SetOcclusionRatio(0.1)
+        self.renderer.SetMaximumNumberOfPeels(100)
+        self.renderWindow.SetMultiSamples(0)
+        self.renderWindow.SetAlphaBitPlanes(1)
 
         '# % SET VTK OBSERVERS'
         self.Interactor.AddObserver("KeyPressEvent", self.keyPressEvent)
@@ -855,6 +843,7 @@ class ThreeDimViewer(wx.Frame):
         '# % SET RENDERER CAMERA AS OBJECT'
         self.cam = vtk.vtkCamera()
         self.renderer.SetActiveCamera(self.cam)
+        self.get_cam()
 
         '# % SET DEFAULT INTERACTION STYLE'
         self.base_style = vtk.vtkInteractorStyleTrackballCamera()
@@ -864,6 +853,14 @@ class ThreeDimViewer(wx.Frame):
         ' # % ADD Interactor WINDOW TO TOP BOX'
         self.box_top = wx.BoxSizer(wx.VERTICAL)
         self.box_top.Add(self.Interactor, 1, wx.ALIGN_CENTRE | wx.EXPAND)
+
+
+        '# % INITIALIZE OBJECTS FOR LATER --------------------------------------------------------'
+        self.predicted_xyz = predicted_xyz
+        self.difference_xyz = difference_xyz
+
+        self.predicted_color_min = 0.25
+        self.predicted_color_max = 0.65
 
         '# % ADD MOUSE INTERACTION TOOLS --------------------------------------------------------'
         # PASS
@@ -921,12 +918,31 @@ class ThreeDimViewer(wx.Frame):
         self.save_cm_button = wx.Button(self.tdv_left_panel, -1, "Save .cm", size=(150, 20), style=wx.ALIGN_CENTRE)
         self.save_cm_button.Bind(wx.EVT_BUTTON, self.save_cm)
 
+        '# % ADD SAVE CM BUTTON'
+        self.toggle_button = wx.Button(self.tdv_left_panel, -1, "Toggle", size=(150, 20), style=wx.ALIGN_CENTRE)
+        self.toggle_button.Bind(wx.EVT_BUTTON, self.toggle)
+
+        '# % PREDICTED MIN'
+        self.predicted_min_text = wx.StaticText(self.tdv_left_panel, -1, "Predicted Min", style=wx.ALIGN_CENTRE)
+        self.predicted_min_color_slider = wx.Slider(self.tdv_left_panel, value=25, minValue=0,
+                                                maxValue=100, size=(150, 20),
+                                                style=wx.SL_HORIZONTAL)
+        self.predicted_min_color_slider.Bind(wx.EVT_SLIDER, self.predicted_min)
+
+        '# % PREDICTED MAX'
+        self.predicted_max_text = wx.StaticText(self.tdv_left_panel, -1, "Predicted Max", style=wx.ALIGN_CENTRE)
+        self.predicted_max_color_slider = wx.Slider(self.tdv_left_panel, value=65, minValue=0,
+                                                    maxValue=100, size=(150, 20), style=wx.SL_HORIZONTAL)
+        self.predicted_max_color_slider.Bind(wx.EVT_SLIDER, self.predicted_max)
+
         ' #% ADD BUTTONS ETC TO LEFT BOX'
-        self.left_box = wx.FlexGridSizer(cols=1, rows=15, hgap=5, vgap=5)
+        self.left_box = wx.FlexGridSizer(cols=1, rows=20, hgap=5, vgap=5)
         self.left_box.AddMany([self.picker_button, self.x_scale_text, self.x_scale_slider, self.y_scale_text,
                                self.y_scale_slider, self.z_scale_text, self.z_scale_slider, self.size_text,
                                self.size_slider, self.flag_button, self.delaunay_button, self.predicted_delaunay_button,
-                               self.delete_selected_button, self.save_cm_button])
+                               self.delete_selected_button, self.save_cm_button, self.toggle_button,
+                               self.predicted_min_text, self.predicted_min_color_slider, self.predicted_max_text,
+                               self.predicted_max_color_slider])
 
         '# % RENDER THE XYZ DATA IN 3D'
         self.cm = cm
@@ -935,11 +951,9 @@ class ThreeDimViewer(wx.Frame):
         self.xyz_meta_data = xyz_meta_data
         self.xyz_point_flags = xyz_point_flags
         self.xyz_cm_line_number = xyz_cm_line_number
-        '# % DO THE RENDER OF THE PONIT DATA'
-        self.do_point_render()
 
-        '#  % MAKE THE PREDICTED XYZ DATA AN OBJECT'
-        self.predicted_xyz_file = predicted_xyz_file
+        '# % DO THE RENDER OF THE POINT DATA'
+        self.do_point_render()
 
         '# % SET SIZERS'
         # self.tdv_sizer()
@@ -977,23 +991,32 @@ class ThreeDimViewer(wx.Frame):
         *** arg1 = XYZ NUMPY ARRAY
         """
 
-        '  # %Render XYZ POINTS'
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        '  # %SET SCALES'
         self.x_scale = 1
         self.y_scale = 1
         self.z_scale = 1  # SET SCALE VALUE FOR Z-AXIS (CAN BE MODIFIED IN VIEWER USING SLIDING BAR)
-        self.pointcloud = VtkPointCloud(self.xyz, self.xyz_cm_id, self.xyz_meta_data,
-                                        self.xyz_cm_line_number, self.xyz_point_flags, self.cm)
+
+        '  # %Render XYZ POINTS'
+        self.pointcloud = VtkPointCloud(self.xyz, self.difference_xyz)
         for k in range(len(self.xyz)):
             point = self.xyz[k]
             xyz_cm_id = self.xyz_cm_id[k]
             xyz_cm_line_number = self.xyz_cm_line_number[k]
-            self.pointcloud.addPoint(point, xyz_cm_id, xyz_cm_line_number)
+            if self.difference_xyz is not None:
+                difference_xyz = self.difference_xyz[k]
+            else:
+                difference_xyz = np.zeros_like(point)
+            self.pointcloud.addPoint(point, xyz_cm_id, xyz_cm_line_number, difference_xyz)
 
         '# % ADD ACTOR TO RENDER'
         self.renderer.AddActor(self.pointcloud.vtkActor)
 
         '# % SET POINT SIZE'
         self.pointcloud.vtkActor.GetProperty().SetPointSize(4)
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
         '# % Add 3D AXES WIDGET'
         self.axesactor = vtk.vtkAxesActor()
@@ -1006,14 +1029,15 @@ class ThreeDimViewer(wx.Frame):
 
         '#  % CREATE SCALE BAR'
         self.cb_mapper = self.pointcloud.vtkActor.GetMapper()
-        self.cb_mapper.SetScalarRange(self.xyz[:,2].min(), self.xyz[:,2].max())
-
+        print(self.cb_mapper)
+        # self.cb_mapper.SetScalarRange(self.xyz[:,2].min(), self.xyz[:,2].max())
+        self.cb_mapper.SetScalarRange(-0.4934, -0.002)
         self.sb = vtk.vtkScalarBarActor()
         self.sb.SetLookupTable(self.cb_mapper.GetLookupTable())
         self.renderer.AddActor(self.sb)
         self.sb.SetAnnotationTextScaling(100)
         self.sb.SetTitle("Depth (m)")
-        self.sb.SetLabelFormat("%0.1f")
+        self.sb.SetLabelFormat("%0.2f")
         self.sb.SetOrientationToHorizontal()
         self.sb.SetWidth(0.3)
         self.sb.SetHeight(0.05)
@@ -1080,19 +1104,31 @@ class ThreeDimViewer(wx.Frame):
             self.renderWindow.Render()
 
     def render_predicted(self, event):
-
-        if self.predicted_xyz_file is not None:
+        print("self.predicted_xyz ==")
+        print(self.predicted_xyz)
+        try:
+            print("rendering predicted")
             '  # %Render XYZ POINTS'
-            self.predicted_pointcloud = VtkPointCloud(self.predicted_xyz_file)
-            for k in range(size(self.predicted_xyz_file, 0)):
-                point = self.predicted_xyz_file[k]
+            self.predicted_pointcloud = VtkPointCloudPredicted(self.predicted_xyz)
+            print ("ADDING POINTS")
+            for k in range(len(self.predicted_xyz)):
+                point = self.predicted_xyz[k]
                 self.predicted_pointcloud.addPoint(point)
+            print("ADDING ACTOR TO RENDER")
+            '# % ADD ACTOR TO RENDER'
+            self.renderer.AddActor(self.predicted_pointcloud.vtkActor)
+            self.predicted_pointcloud.vtkActor.GetProperty().SetPointSize(1)
+            '# % HIDE'
+            self.predicted_pointcloud.vtkActor.SetVisibility(False)
 
-            # self.renderer.AddActor(self.predicted_pointcloud.vtkActor)
-
+            print("DOING delaunay_predicted")
             self.delaunay_predicted()
 
             self.renderWindow.Render()
+
+            print("DONE")
+        except AttributeError:
+            print("ERROR FAILED TO RENDER predicted_xyz")
 
     def delaunay_predicted(self):
         """CREATE GRID OF PREDICTED BATHYMETRY"""
@@ -1104,33 +1140,66 @@ class ThreeDimViewer(wx.Frame):
             self.renderWindow.Render()
             print("predicted_meshActor exists")
         except AttributeError:
-            self.cell_array = vtk.vtkCellArray()
-            self.boundary = self.predicted_pointcloud.cm_poly_data
-            self.boundary.SetPoints(self.predicted_pointcloud.cm_poly_data.GetPoints())
-            self.boundary.SetPolys(self.cell_array)
+            try:
+                print("CREATING PREDICTED GRID")
+                self.cell_array = vtk.vtkCellArray()
+                self.predicted_boundary = self.predicted_pointcloud.poly_data
+                self.predicted_boundary.SetPoints(self.predicted_pointcloud.poly_data.GetPoints())
+                self.predicted_boundary.SetPolys(self.cell_array)
 
-            self.delaunay = vtk.vtkDelaunay2D()
-            if vtk.VTK_MAJOR_VERSION <= 5:
-                self.delaunay.SetInput(self.predicted_pointcloud.cm_poly_data.GetOutput())
-                self.delaunay.SetSource(self.boundary)
-            else:
-                self.delaunay.SetInputData(self.predicted_pointcloud.cm_poly_data)
-                self.delaunay.SetSourceData(self.boundary)
+                self.predicted_delaunay = vtk.vtkDelaunay2D()
+                if vtk.VTK_MAJOR_VERSION <= 5:
+                    self.predicted_delaunay.SetInput(self.predicted_pointcloud.poly_data.GetOutput())
+                    self.predicted_delaunay.SetSource(self.predicted_boundary)
+                else:
+                    self.predicted_delaunay.SetInputData(self.predicted_pointcloud.poly_data)
+                    self.predicted_delaunay.SetSourceData(self.predicted_boundary)
 
-            self.delaunay.Update()
+                self.predicted_delaunay.Update()
 
-            self.meshMapper = vtk.vtkPolyDataMapper()
-            self.meshMapper.SetInputData(self.predicted_pointcloud.cm_poly_data)
-            self.meshMapper.SetColorModeToDefault()
-            self.meshMapper.SetScalarRange(self.predicted_xyz_file[:, 2].min(), self.predicted_xyz_file[:, 2].max())
-            self.meshMapper.SetScalarVisibility(1)
-            self.meshMapper.SetInputConnection(self.delaunay.GetOutputPort())
-            self.predicted_meshActor = vtk.vtkActor()
-            self.predicted_meshActor.SetMapper(self.meshMapper)
-            self.predicted_meshActor.GetProperty().SetInterpolationToFlat()
+                print("MAKING MAPPER")
+                self.predicted_meshMapper = vtk.vtkPolyDataMapper()
+                self.predicted_meshMapper.SetInputData(self.predicted_pointcloud.poly_data)
 
-            self.renderer.AddActor(self.predicted_meshActor)
-            self.renderWindow.Render()
+                print("MAKING LUT")
+                '# % CREATE COLOR LOOK UP TABLE'
+                self.predicted_lut = self.make_lookup_table()
+                self.predicted_meshMapper.SetLookupTable(self.predicted_lut)
+
+                print("SET MAPPER INPUTS")
+                '# % SET MAPPER INPUTS'
+                self.predicted_meshMapper.SetScalarRange(self.predicted_xyz[:, 2].min(), self.predicted_xyz[:, 2].max())
+                self.predicted_meshMapper.SetScalarVisibility(1)
+                self.predicted_meshMapper.SetInputConnection(self.predicted_delaunay.GetOutputPort())
+
+                '# % CREATE ACTOR'
+                self.predicted_meshActor = vtk.vtkActor()
+                self.predicted_meshActor.SetMapper(self.predicted_meshMapper)
+                self.predicted_meshActor.GetProperty().SetInterpolationToFlat()
+
+                '# % ADD MESH TO RENDER'
+                self.renderer.AddActor(self.predicted_meshActor)
+                self.renderWindow.Render()
+            except AttributeError:
+                print("FAILED ON CREATING PREDICTED")
+
+    def make_lookup_table(self):
+        """
+        Make a lookup table using vtkColorSeries.
+        :return: An indexed lookup table.
+        """
+        '# % SET UPPER AND LOWER VALUES'
+        a = self.xyz[:, 2].min()
+        b = self.xyz[:, 2].max()
+
+        '# % CREATE LUT'
+        lut = vtk.vtkColorTransferFunction()
+
+        '#% SET COLOR BANDS (GREYSCALE)'
+        # % NB. FORMAT:: VALUE THEN RGB CODE (THREE NUMBERS)
+        lut.AddRGBPoint(a, self.predicted_color_min, self.predicted_color_min, self.predicted_color_min)
+        lut.AddRGBPoint(b, self.predicted_color_max, self.predicted_color_max, self.predicted_color_max)
+        return lut
 
     def set_point_size(self, value):
         self.size = float(self.size_slider.GetValue())
@@ -1178,8 +1247,38 @@ class ThreeDimViewer(wx.Frame):
         self.renderWindow.Render()
         return
 
-    def rubber_picker(self, event):
-        # print("r key pressed")
+    def predicted_min(self, value):
+        """RESCALE THE PREDICTED GRID COLOR SCALE"""
+        try:
+            '#% GET THE NEW SCALE VALUE'
+            self.predicted_color_min = float(self.predicted_min_color_slider.GetValue())
+            self.new_lut = self.make_lookup_table()
+
+            self.predicted_meshMapper.SetLookupTable(self.new_lut)
+
+            self.renderWindow.Render()
+        except AttributeError:
+            print("ERROR IN predicted_min")
+            pass
+        return
+
+    def predicted_max(self, value):
+        """RESCALE THE PREDICTED GRID COLOR SCALE"""
+        try:
+            '#% GET THE NEW SCALE VALUE'
+            self.predicted_color_max = float(self.predicted_max_color_slider.GetValue())
+
+            self.new_lut = self.make_lookup_table()
+
+            self.predicted_meshMapper.SetLookupTable(self.new_lut)
+
+            self.renderWindow.Render()
+        except AttributeError:
+            print("ERROR IN predicted_max")
+            pass
+        return
+
+    def rubber_picker(self):
         print("current style = %s" % self.current_style)
 
         if self.current_style is 'rubber_band':
@@ -1192,27 +1291,23 @@ class ThreeDimViewer(wx.Frame):
             self.Interactor.SetInteractorStyle(self.base_style)
             self.current_style = str('base_style')
 
-            self.cam.SetFocalPoint(self.focal_point)
-            self.cam.SetPosition(self.positon)
-            self.cam.SetViewUp(self.view_up)
-            self.cam.SetViewAngle(self.view_angle)
-            self.cam.SetParallelProjection(self.parallel_projection)
-            self.cam.SetParallelScale(self.parallel_scale)
-            self.cam.SetClippingRange(self.clip)
-
-            self.renderer.Render()
-            self.renderWindow.Render()
-
         else:
+
             print('setting style as rubber_band')
             self.area_picker = vtk.vtkAreaPicker()
             self.Interactor.SetPicker(self.area_picker)
             self.rubber_style = RubberBand(self.renderWindow, self.renderer, self.pointcloud, self.Interactor,
                                            self.area_picker, self.cm)
+            self.rubber_style.SetAutoAdjustCameraClippingRange(False)
+            self.rubber_style.AutoAdjustCameraClippingRangeOff()
             self.Interactor.SetInteractorStyle(self.rubber_style)
             self.current_style = str('rubber_band')
 
-    def delete_selected(self, event):
+        self.re_render()
+
+        return
+
+    def delete_selected(self):
         """CREATES A NEW NUMPY ARRAY of the cm FILE WITH SELECTED NODES REMOVED"""
         print("Deleting")
         try:
@@ -1284,6 +1379,23 @@ class ThreeDimViewer(wx.Frame):
         outputfile = save_file_dialog.GetPath()
         np.savetxt(outputfile, self.cm, delimiter=" ")
 
+    def toggle(self, event):
+        """# %Toogle Display (depth or difference)"""
+        # print(self.difference_xyz)
+        # self.pointcloud.cm_poly_data.GetPointData().SetActiveScalars('DIFF')
+        # self.pointcloud.mapper.SetScalarRange(0.0, 0.001)
+        # self.renderWindow.Render()
+        if self.pointcloud.cm_poly_data.GetPointData().GetScalars().GetName() == 'Z':
+            print("currently Z")
+            self.pointcloud.cm_poly_data.GetPointData().SetActiveScalars('DIFF')
+            # self.pointcloud.mapper.SetScalarRange(self.difference_xyz[:, 2].min(), self.difference_xyz[:, 2].max())
+            self.pointcloud.mapper.SetScalarRange(0.0, 0.1)
+        else:
+            print("currently DIFF")
+            self.pointcloud.cm_poly_data.GetPointData().SetActiveScalars('Z')
+            self.pointcloud.mapper.SetScalarRange(self.xyz[:, 2].min(), self.xyz[:, 2].max())
+        self.renderWindow.Render()
+
     def re_render(self):
         """
         # % RE RENDER 3D POINTS AFTER REMOVING SELECTION
@@ -1292,8 +1404,9 @@ class ThreeDimViewer(wx.Frame):
         self.renderer.RemoveActor(self.pointcloud.vtkActor)
         del self.pointcloud.vtkActor
 
-        self.xyz = self.cm[:, 1:4]
-        self.xyz = np.divide(self.xyz, (1.0/self.x_scale, 1.0/self.y_scale, 10000.0/self.z_scale))  # % DIVIDE TO MAKE Z SCALE ON SAME ORDER OF MAG AS X&Z
+        self.xyz_input = self.cm[:, 1:4]
+        self.xyz = np.divide(self.xyz_input, (1.0/self.x_scale, 1.0/self.y_scale, 10000.0/self.z_scale))  # % DIVIDE TO MAKE Z SCALE ON SAME ORDER OF MAG AS X&Z
+        del self.xyz_input
         self.xyz_cm_id = self.cm[:, 0].astype(int)  # % GET CM FILE IDs
         self.xyz_width = self.cm.shape[1]
         self.xyz_meta_data = self.cm[:, 4:self.xyz_width]
@@ -1302,13 +1415,16 @@ class ThreeDimViewer(wx.Frame):
 
         '  # %Render XYZ POINTS'
         del self.pointcloud
-        self.pointcloud = VtkPointCloud(self.xyz, self.xyz_cm_id, self.xyz_meta_data,
-                                        self.xyz_cm_line_number, self.xyz_point_flags, self.cm)
+        self.pointcloud = VtkPointCloud(self.xyz, self.difference_xyz)
         for k in range(len(self.xyz)):
             point = self.xyz[k]
             xyz_cm_id = self.xyz_cm_id[k]
             xyz_cm_line_number = self.xyz_cm_line_number[k]
-            self.pointcloud.addPoint(point, xyz_cm_id, xyz_cm_line_number)
+            if self.difference_xyz is not None:
+                difference_xyz = self.difference_xyz[k]
+            else:
+                difference_xyz = np.zeros_like(point)
+            self.pointcloud.addPoint(point, xyz_cm_id, xyz_cm_line_number, difference_xyz)
 
         self.renderer.AddActor(self.pointcloud.vtkActor)
         self.set_point_size(float(self.size_slider.GetValue()))
@@ -1318,48 +1434,40 @@ class ThreeDimViewer(wx.Frame):
             self.grid_created = 0
             self.renderer.AddActor(self.meshActor)
 
-        '# % SET ACTIVE CAM'
-        self.renderer.SetActiveCamera(self.cam)
-
         '#% RESCALE THE AXIS OUTLINE'
         self.outlineActor.SetBounds(self.xyz[:, 0].min(), self.xyz[:, 0].max(),
                                     self.xyz[:, 1].min(), self.xyz[:, 1].max(),
                                     self.xyz[:, 2].min(), self.xyz[:, 2].max())
 
+        '# % SET ACTIVE CAM'
+        self.renderer.SetActiveCamera(self.cam)
+        self.set_cam()
+        self.renderWindow.Render()
+        print("FINISHED")
         # self.Interactor.RemoveObservers('KeyPressEvent')
         # self.Interactor.RemoveObservers('CharEvent')
 
-    def keyPressEvent(self, obj, event):
+    def keyPressEvent(self, event, obj):
         key = self.Interactor.GetKeyCode()
         # key = self.Interactor.GetKeySym()
+
         '''# %ACTIVATE POINT PICKER'''
         if key == 'r':
-            print("!!!!!!!")
-            print("get cam")
-            print("!!!!!!!!")
-            self.focal_point = self.cam.GetFocalPoint()
-            self.positon = self.cam.GetPosition()
-            self.view_up = self.cam.GetViewUp()
-            self.view_angle = self.cam.GetViewAngle()
-            self.parallel_projection = self.cam.GetParallelProjection()
-            self.parallel_scale = self.cam.GetParallelScale()
-            self.clip = self.cam.GetClippingRange()
-            print(self.focal_point)
-            print(self.positon)
-            print(self.view_up)
-            print(self.view_angle)
-            print(self.parallel_projection)
-            print(self.parallel_scale)
-            print(self.clip)
-            self.rubber_picker(obj)
-
-            self.set_cam()
+            # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            self.get_cam()
+            # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            self.rubber_picker()
 
         if key == 'd':
-            self.delete_selected(obj)
+            self.get_cam()
+            self.delete_selected()
+            self.set_cam()
 
         if key == 'c':
             self.set_cam()
+
+        self.re_render()
+
     # def middleButtonPressEvent(self, obj, event):
     #     print("Middle Button pressed")
     #     self.OnMiddleButtonDown()
@@ -1369,6 +1477,24 @@ class ThreeDimViewer(wx.Frame):
     #     print("Middle Button released")
     #     self.OnMiddleButtonUp()
     #     return
+    def get_cam(self):
+        print("!!!!!!!")
+        print("get cam")
+        print("!!!!!!!!")
+        self.focal_point = self.cam.GetFocalPoint()
+        self.positon = self.cam.GetPosition()
+        self.view_up = self.cam.GetViewUp()
+        self.view_angle = self.cam.GetViewAngle()
+        self.parallel_projection = self.cam.GetParallelProjection()
+        self.parallel_scale = self.cam.GetParallelScale()
+        self.clip = self.cam.GetClippingRange()
+        print(self.focal_point)
+        print(self.positon)
+        print(self.view_up)
+        print(self.view_angle)
+        print(self.parallel_projection)
+        print(self.parallel_scale)
+        print(self.clip)
 
     def set_cam(self):
         print("##########")
@@ -1381,7 +1507,6 @@ class ThreeDimViewer(wx.Frame):
         print(self.parallel_projection)
         print(self.parallel_scale)
         print(self.clip)
-
         self.cam.SetFocalPoint(self.focal_point)
         self.cam.SetPosition(self.positon)
         self.cam.SetViewUp(self.view_up)
@@ -1389,25 +1514,21 @@ class ThreeDimViewer(wx.Frame):
         self.cam.SetParallelProjection(self.parallel_projection)
         self.cam.SetParallelScale(self.parallel_scale)
         self.cam.SetClippingRange(self.clip)
+        return
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class VtkPointCloud:
-    def __init__(self, xyz, xyz_cm_id, xyz_meta_data, xyz_cm_line_number, xyz_point_flags, cm,
-                 maxNumPoints=10e6):
+    def __init__(self, xyz, xyz_difference, maxNumPoints=10e7):
         """CREATE vtk PointCloud (XYZ SCATTER PLOT OF BATHYMETRY DATA"""
 
         '# %INITIALISE POINT DATA'
-        self.cm = cm
         self.xyz = xyz  # % THIS IS THE XYZ DATA
-        self.xyz_cm_id = xyz_cm_id  # % THIS IS THE .cm ID
-        self.xyz_meta_data = xyz_meta_data  # % THIS CONTAINS ALL ADDITIONAL COLUMNS
-        self.xyz_cm_line_number = xyz_cm_line_number
-        self.xyz_point_flags = xyz_point_flags
+        self.xyz_difference = xyz_difference  # % THIS IS THE XYZ WITH Z = DIFFERENCE BETWEEN OBS && PREDICTED
         self.maxNumPoints = maxNumPoints
-
         '# %CREATE vtkPolyData OBJECT'
         self.cm_poly_data = vtk.vtkPolyData()
-
         self.xyz_points = vtk.vtkPoints()
         self.cm_poly_data.SetPoints(self.xyz_points)
 
@@ -1434,8 +1555,13 @@ class VtkPointCloud:
         self.cm_poly_data.GetPointData().AddArray(self.xyz_depth)
         self.cm_poly_data.GetPointData().SetScalars(self.xyz_depth)
         self.cm_poly_data.GetPointData().SetActiveScalars('Z')
-        # self.cm_poly_data.GetPointData().SetActiveScalars('cm_id')
 
+        '# % SCALAR 4 = DIFFERENCE (PREDICTED-OBSERVED DEPTHS'
+        self.diff = vtk.vtkDoubleArray()
+        self.diff.SetName('DIFF')
+        self.cm_poly_data.GetPointData().AddArray(self.diff)
+
+        # OLD METHOD~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         '# % SET COLOR MAPPER'
         self.mapper = vtk.vtkPolyDataMapper()
         self.mapper.SetInputData(self.cm_poly_data)
@@ -1444,8 +1570,13 @@ class VtkPointCloud:
         self.mapper.SetScalarVisibility(1)
         self.vtkActor = vtk.vtkActor()
         self.vtkActor.SetMapper(self.mapper)
+        #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def addPoint(self, point, xyz_cm_id, xyz_cm_line_number):
+        '# % CREATE ACTOR TO BE ADDED TO RENDER'
+        self.vtkActor = vtk.vtkActor()
+        self.vtkActor.SetMapper(self.mapper)
+
+    def addPoint(self, point, xyz_cm_id, xyz_cm_line_number, difference_xyz):
 
         if self.xyz_points.GetNumberOfPoints() < self.maxNumPoints:
             pointId = self.xyz_points.InsertNextPoint(point[:])
@@ -1454,9 +1585,106 @@ class VtkPointCloud:
             self.xyz_cells.InsertCellPoint(pointId)
             self.cm_id.InsertNextValue(xyz_cm_id)
             self.cm_line_number.InsertNextValue(xyz_cm_line_number)
+            self.diff.InsertNextValue(difference_xyz[2])
         else:
             print("ERROR: MORE THAN 10e6 POINTS IN FILE")
             return
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class VtkPointCloudPredicted:
+    def __init__(self, xyz, maxNumPoints=10e7):
+        """CREATE vtk PointCloud (XYZ SCATTER PLOT OF BATHYMETRY DATA"""
+        print("STARTING  VtkPointCloudPredicted")
+        '# %INITIALISE POINT DATA'
+        self.xyz = xyz  # % THIS IS THE XYZ DATA
+        self.maxNumPoints = maxNumPoints
+
+        print("CREATE vtkPolyData OBJECT")
+        '# %CREATE vtkPolyData OBJECT'
+        self.poly_data = vtk.vtkPolyData()
+        self.xyz_points = vtk.vtkPoints()
+        self.poly_data.SetPoints(self.xyz_points)
+
+        print("CREATE vtkPolyData VERTICES")
+        '# %CREATE vtkPolyData VERTICES'
+        self.xyz_cells = vtk.vtkCellArray()
+        self.poly_data.SetVerts(self.xyz_cells)
+
+        # % NB. SCALAR VALUES ARE INITIALISED HERE AND THEN THE VALUES ARE ADDED in addPoint
+        print("CREATE SCALAR")
+        '# % SCALAR 1 = DEPTH'
+        self.xyz_depth = vtk.vtkDoubleArray()
+        self.xyz_depth.SetName('Z')
+        self.poly_data.GetPointData().AddArray(self.xyz_depth)
+        self.poly_data.GetPointData().SetScalars(self.xyz_depth)
+        self.poly_data.GetPointData().SetActiveScalars('Z')
+
+        #  %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # % LUT TABLE
+        print("CREATE LUT")
+        self.lut = self.make_lookup_table()
+        self.mapper = vtk.vtkPolyDataMapper()
+        self.mapper.SetLookupTable(self.lut)
+        self.mapper.SelectColorArray('Z')
+        #  %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        print("CREATE SET MAPPER STUFF")
+        self.mapper.SetScalarRange(self.xyz[:, 2].min(), self.xyz[:, 2].max())
+        self.mapper.SetInputData(self.poly_data)
+        self.mapper.SetScalarModeToUsePointFieldData()
+
+        # % CREATE ACTOR
+        self.vtkActor = vtk.vtkActor()
+        self.vtkActor.SetMapper(self.mapper)
+
+    def addPoint(self, point):
+        if self.xyz_points.GetNumberOfPoints() < self.maxNumPoints:
+            pointId = self.xyz_points.InsertNextPoint(point[:])
+            self.xyz_depth.InsertNextValue(point[2])
+            self.xyz_cells.InsertNextCell(1)
+            self.xyz_cells.InsertCellPoint(pointId)
+        else:
+            print("ERROR: MORE THAN 10e8 POINTS IN FILE")
+            return
+
+    def make_lookup_table(self):
+        """
+        Make a lookup table using vtkColorSeries.
+        :return: An indexed lookup table.
+        """
+        # # Make the lookup table.
+        # colorSeries = vtk.vtkColorSeries()
+        # # # Select a color scheme.
+        # colorSeriesEnum = colorSeries.BREWER_DIVERGING_BROWN_BLUE_GREEN_9
+        # # # colorSeriesEnum = colorSeries.BREWER_DIVERGING_SPECTRAL_10
+        # # # colorSeriesEnum = colorSeries.BREWER_DIVERGING_SPECTRAL_3
+        # # # colorSeriesEnum = colorSeries.BREWER_DIVERGING_PURPLE_ORANGE_9
+        # # colorSeriesEnum = colorSeries.BREWER_SEQUENTIAL_BLUE_PURPLE_9
+        # # # colorSeriesEnum = colorSeries.BREWER_SEQUENTIAL_BLUE_GREEN_9
+        # # # colorSeriesEnum = colorSeries.BREWER_QUALITATIVE_SET3
+        # # # colorSeriesEnum = colorSeries.CITRUS
+        # colorSeries.SetColorScheme(colorSeriesEnum)
+        # lut = vtk.vtkLookupTable()
+        # colorSeries.BuildLookupTable(lut)
+        # lut.SetNanColor(1, 0, 0, 1)
+
+        a = self.xyz[:, 2].min()
+        b = self.xyz[:, 2].max()
+        lut = vtk.vtkColorTransferFunction()
+        # lut.AddRGBPoint(a, 0.0, 0.0, 1.0)
+        # lut.AddRGBPoint(a + (b - a) / 4, 0.0, 0.5, 0.5)
+        # lut.AddRGBPoint(a + (b - a) / 2, 0.0, 1.0, 0.0)
+        # lut.AddRGBPoint(b - (b - a) / 4, 0.5, 0.5, 0.0)
+        # lut.AddRGBPoint(b, 1.0, 0.0, 0.0)
+
+        # % NB. FORMAT:: VALUE THEN RGB CODE (THREE NUMBERS)
+        lut.AddRGBPoint(a, 0.25, 0.25, 0.25)
+        lut.AddRGBPoint(b, 0.75, 0.75, 0.75)
+        return lut
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class RubberBand(vtk.vtkInteractorStyleRubberBandPick):
     def __init__(self, renderWindow, renderer, pointcloud, interactor, area_picker, cm):
