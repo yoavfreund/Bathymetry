@@ -91,6 +91,12 @@ First install the Anaconda Python distribution:
     conda install wxpython=4.0.1
     conda install folium
 
+To run the app use:
+    
+    pythonw Py-CMeditor.py
+
+The there is a demo .cm file to load in the human_editing branch. 
+
 ## Notes
 Dev branch is called: human_editing
 
