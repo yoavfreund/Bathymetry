@@ -35,7 +35,7 @@ PYTHONHOME=$VIRTUAL_ENV /usr/local/bin/python Py-CMeditor.py
 
 # Update
 
-In the dev stage of this GUI it is better to use Anaconda and create a virtual environment (see bottom of Readme in Bathymetry readme).
+In the dev stage of this GUI it is better to use Anaconda and create a virtual environment (see the bottom of Readme in parent Bathymetry dir).
 
 The virtualenv probelm occurs on Macs and can be overcome by using pythonw. NB. the 'w'. E.g. 
     pythonw Py-CMeditor.py
