@@ -77,12 +77,12 @@ Indexes:<br>
 
 # Human editing software 
 
-## dev enivroment install
+## dev environment installation
 First install the Anaconda Python distribution:
     
     https://www.anaconda.com/download/#all
  
- Then in the terminal:
+ Then in a terminal run:
  
     conda create --name pycmeditor
     source activate pycmeditor
@@ -94,4 +94,4 @@ First install the Anaconda Python distribution:
 ## Notes
 Dev branch is called: human_editing
 
-Once software is competed a pip package will be created for sharing.
+Once software is completed, a pip package will be created for distributing.
