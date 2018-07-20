@@ -66,7 +66,10 @@ from vtk.util.numpy_support import vtk_to_numpy
 import glob
 import os
 import webbrowser
-
+import folium
+from folium import features
+from wx import html
+from wx import html2
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -80,8 +83,7 @@ class PyCMeditor(wx.Frame):
     """
 
     '# %DIR CONTAINING PROGRAM ICONS'
-    # gui_icons_dir = os.path.dirname(__file__) + '/icons/'
-    gui_icons_dir = '/Users/brook/kite/Py-CMeditor/icons/'
+    gui_icons_dir = os.path.dirname(os.path.realpath(__file__)) + '/icons/'
 
     # INITALIZE GUI~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -91,13 +93,13 @@ class PyCMeditor(wx.Frame):
         '# %START AUI WINDOW MANAGER'
         self.mgr = aui.AuiManager()
 
-        '# %TELL AUI WHICH FRAME TO USE'ss
+        '# %TELL AUI WHICH FRAME TO USE'
         self.mgr.SetManagedWindow(self)
 
         '# %SET SPLITTER WINDOW TOGGLE IMAGES'
         images = wx.ImageList(16, 16)
         top = wx.ArtProvider.GetBitmap(wx.ART_GO_UP, wx.ART_MENU, (16, 16))
-        botstom = wx.ArtProvider.GetBitmap(wx.ART_GO_DOWN, wx.ART_MENU, (16, 16))
+        bottom = wx.ArtProvider.GetBitmap(wx.ART_GO_DOWN, wx.ART_MENU, (16, 16))
         images.Add(top)
         images.Add(bottom)
 
@@ -309,18 +311,33 @@ class PyCMeditor(wx.Frame):
     def draw_navigation_window(self):
         """# %INITALISE OBSERVED DATA AND LAYERS"""
 
+        # self.tile = 'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{z}/{y}/{x}.png'
+
+        self.folium_map = folium.Map(location=[0.0, -180.0],
+                                zoom_start=2,
+                                tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{z}/{y}/{x}.png',
+                                attr='My Data Attribution')
+
+        # self.folium_map.TitleLayer(tiles='https://server.arcgisonline.com/ArcGIS/rest/services/Ocean_Basemap/MapServer/tile/{z}/{y}/{x}.png')
+
+
+        self.folium_map.save("my_map.html")
+
+        self.browser = wx.html2.WebView.New(self.rightPanelbottom, -1)
+        self.browser.LoadURL('/Users/brook/Bathymetry/human_editing/GUI/my_map.html')
+
         """# %CREATE MPL FIGURE CANVAS"""
         mpl.rcParams['toolbar'] = 'None'
 
-        self.fig = plt.figure()  # %CREATE MPL FIGURE
+        # self.fig = plt.figure()  # %CREATE MPL FIGURE
         # self.fig = Basemap(projection='robin', lon_0=0.5 * (lons[0] + lons[-1]))
 
-        self.canvas = FigureCanvas(self.rightPanelbottom, -1, self.fig)  # %CREATE FIGURE CANVAS
-        self.nav_toolbar = NavigationToolbar(self.canvas)  # %CREATE NAVIGATION TOOLBAR
-        self.nav_toolbar.Hide()
+        # self.canvas = FigureCanvas(self.rightPanelbottom, -1, self.fig)  # %CREATE FIGURE CANVAS
+        # self.nav_toolbar = NavigationToolbar(self.canvas)  # %CREATE NAVIGATION TOOLBAR
+        # self.nav_toolbar.Hide()
 
         '#% SET DRAW COMMAND WHICH CAN BE CALLED TO REDRAW THE FIGURE'
-        self.draw = self.fig.canvas.draw
+        # self.draw = self.fig.canvas.draw
 
         '#% GET THE MODEL DIMENSIONS AND SAMPLE LOCATIONS'
         self.x1 = -90.
@@ -328,8 +345,6 @@ class PyCMeditor(wx.Frame):
         self.y1 = -180.
         self.y2 = 180.
         self.aspect = 1.
-        '#% INITAISE THE MODEL PARAMETERS'
-        # self.initalise_model()
 
         '#% DRAW MAIN PROGRAM WINDOW'
         self.draw_main_frame()
@@ -370,22 +385,22 @@ class PyCMeditor(wx.Frame):
         self.T = wx.TextCtrl(self.rightPaneltop, -1)
 
         '#%NAV CANVAS'
-        self.nav_canvas = plt.subplot2grid((20, 20), (2, 2), rowspan=17, colspan=17)
-        self.nav_canvas.set_xlabel("Longitude (dec. Degrees)")
-        self.nav_canvas.set_ylabel("Latitude (dec. Degrees)")
-       s self.nav_canvas.set_xlim(-180., 180.)  # % SET X LIMITS
-        self.nav_canvas.set_ylim(-90, 90.)  # % SET Y LIMITS
-        self.nav_canvas.grid()
-        self.fig.subplots_adjust(top=1.05, left=-0.045, right=1.02, bottom=0.02,
-                                 hspace=0.5)
-        self.error = 0.
-        self.last_layer = 0
+        # self.nav_canvas = plt.subplot2grid((20, 20), (2, 2), rowspan=17, colspan=17)
+        # self.nav_canvas.set_xlabel("Longitude (dec. Degrees)")
+        # self.nav_canvas.set_ylabel("Latitude (dec. Degrees)")
+        # self.nav_canvas.set_xlim(-180., 180.)  # % SET X LIMITS
+        # self.nav_canvas.set_ylim(-90, 90.)  # % SET Y LIMITS
+        # self.nav_canvas.grid()
+        # self.fig.subplots_adjust(top=1.05, left=-0.045, right=1.02, bottom=0.02,
+        #                          hspace=0.5)
+        # self.error = 0.
+        # self.last_layer = 0
 
         '#% UPDATE INFO BAR'
         # self.display_info()
-s
+
         '#%DRAW MAIN'
-        self.draw()
+        # self.draw()
 
     def draw_button_and_list_frame(self):
         """#% CREATE LEFT HAND BUTTON MENU"""
@@ -420,7 +435,8 @@ s
 
         '# %ADD MAIN COORDINATE MAP BOX'
         self.box_right_bottom_sizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.box_right_bottom_sizer.Add(self.canvas, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
+        self.box_right_bottom_sizer.Add(self.browser, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
+        # self.box_right_bottom_sizer.Add(self.canvas, 1, wx.ALL | wx.ALIGN_RIGHT | wx.EXPAND, border=2)
 
         '# %CREATE LAYER BUTTON BOX'
         self.left_box_top_sizer = wx.FlexGridSizer(cols=1, rows=4, hgap=8, vgap=8)
@@ -545,17 +561,58 @@ s
             '# % NOW LOAD THE DATA'
             self.load_cm_file()
 
+    def color(self, input_elev):
+        """SET COLOR FOR POINT PLOTTING"""
+        color_input = -(float(input_elev) / 10000.)
+        cmap = plt.cm.get_cmap('RdYlBu')
+        norm = mpl.colors.Normalize(vmin=-10000.0, vmax=0.0)
+        rgb = cmap(color_input)[:3]
+        return (mpl.colors.rgb2hex(rgb))
+
     def load_cm_file(self):
         """LOAD .cm FILE DATA INTO PROGRAM"""
         try:
             self.colorbar = plt.cm.get_cmap('RdYlBu')
             self.cm = np.genfromtxt(self.cm_file, delimiter=' ', dtype=float, filling_values=-9999)  # % LOAD FILE
-            self.cm_plot = self.nav_canvas.scatter(self.cm[:, 1], self.cm[:, 2], marker='o', s=1, c=self.cm[:, 3],
-                                                   cmap=self.colorbar, label=self.cm[:, 3])
+            # self.cm_plot = self.nav_canvas.scatter(self.cm[:, 1], self.cm[:, 2], marker='o', s=1, c=self.cm[:, 3],
+            #                                        cmap=self.colorbar, label=self.cm[:, 3])
 
-            '# % SET WINDOW DIMENSIONS TO FIT CURRENT SURVEY'
-            self.nav_canvas.set_xlim(self.cm[:, 1].min()-0.2, self.cm[:, 1].max()+0.2)
-            self.nav_canvas.set_ylim(self.cm[:, 2].min()-0.2, self.cm[:, 2].max()+0.2)
+            # myStyle = {
+            #     "color": "#ff7800",
+            #     "weight": 5,
+            #     "opacity": 0.65
+            # }
+            #
+            # data = {
+            #     'type': 'FeatureCollection',
+            #     'features': [
+            #         {
+            #             'type': 'Feature',
+            #             'geometry': {
+            #                 'type': 'MultiPoint',
+            #                 'coordinates': [[lon, lat] for (lat, lon) in zip(self.cm[:, 2], self.cm[:, 1])],
+            #             },
+            #             'properties': {'prop0': 'value0'}
+            #         },
+            #     ],
+            # }
+            # self.folium_map.add_child(features.GeoJson(data, style=myStyle))
+
+            fg = folium.FeatureGroup(name="cm_file")
+
+            for lat, lon, elev, name in zip(self.cm[:, 2], self.cm[:, 1], self.cm[:, 3], self.cm[:, 4]):
+                folium.CircleMarker(location=[lat, lon], radius=1, popup=None, fill=True,
+                                    color=self.color(elev)).add_to(fg)
+
+            self.folium_map.add_child(fg)
+
+            self.folium_map.save("my_map.html")
+            self.browser.LoadURL('/Users/brook/Bathymetry/human_editing/GUI/my_map.html')
+
+            # '# % SET WINDOW DIMENSIONS TO FIT CURRENT SURVEY'
+            # self.nav_canvas.set_xlim(self.cm[:, 1].min()-0.2, self.cm[:, 1].max()+0.2)
+            # self.nav_canvas.set_ylim(self.cm[:, 2].min()-0.2, self.cm[:, 2].max()+0.2)
+
         except IndexError:
             error_message = "ERROR IN LOADING PROCESS - FILE MUST BE ASCII SPACE DELIMITED"
             wx.MessageDialog(self, -1, error_message, "Load Error")
@@ -579,7 +636,7 @@ s
             self.reload_threed()
 
         '# %UPDATE MPL CANVAS'
-        self.draw()
+        # self.draw()
 
     def delete_cm_file(self):
         """" # %DELETE CURRENT .cm FILE SO THE NEWLY SELECTED .cm FILE CAN BE LOADED INTO THE VIEWERS"""
